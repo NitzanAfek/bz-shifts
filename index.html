@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#2f5fd0"><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="בונקר"><style>body{margin:0}</style></head><body>
+<div id="app" hidden><title>בונקר צנובר</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;600&family=Assistant:wght@400;600;700&display=swap">
+<style>
+:root{--bg:#f4f6f9;--card:#fff;--ink:#1d2433;--muted:#667085;--faint:#98a2b3;--line:#e6e9ef;--soft:#f8f9fb;
+--acc:#2f5fd0;--accbg:#e8eefc;--note:#7a4fd6;--notebg:#f3eefe;--swap:#b86e00;--swapbg:#fff3df;--bad:#c4321c;--badbg:#fdecea;--good:#1f8a4c;--goodbg:#e7f5ec;
+--p1:#2f6fb3;--p2:#1f8a70;--p3:#c0602f;--p4:#6d4fb8;--shadow:0 1px 2px rgba(16,24,40,.05)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#11151d;--card:#191f2a;--ink:#e7ebf2;--muted:#a3adbd;--faint:#6f7a8c;--line:#2a3140;--soft:#1d2430;--acc:#8fb0ff;--accbg:#22314f;--note:#b79bff;--notebg:#2a2342;--swap:#f2b04a;--swapbg:#3a2c12;--bad:#ff8a75;--badbg:#3d1d18;--good:#5fd08f;--goodbg:#173426;--p1:#6fa8e8;--p2:#4cc3a2;--p3:#ec9466;--p4:#a88cf0;--shadow:none}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#11151d;--card:#191f2a;--ink:#e7ebf2;--muted:#a3adbd;--faint:#6f7a8c;--line:#2a3140;--soft:#1d2430;--acc:#8fb0ff;--accbg:#22314f;--note:#b79bff;--notebg:#2a2342;--swap:#f2b04a;--swapbg:#3a2c12;--bad:#ff8a75;--badbg:#3d1d18;--good:#5fd08f;--goodbg:#173426;--p1:#6fa8e8;--p2:#4cc3a2;--p3:#ec9466;--p4:#a88cf0;--shadow:none}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+#static{display:flex;flex-direction:column;gap:12px}
+body{background:var(--bg);color:var(--ink);font-family:Assistant,Arial,sans-serif;font-size:16px;line-height:1.5;direction:rtl}
+.wrap{max-width:760px;margin:0 auto;padding-block:16px 110px;padding-inline:16px;display:flex;flex-direction:column;gap:14px}
+h1{font-family:Rubik,Arial,sans-serif;font-weight:600;font-size:22px;margin:0}
+h2{font-family:Rubik,Arial,sans-serif;font-weight:600;font-size:18px;margin:0}
+h3{font-size:15px;margin:0;color:var(--muted);font-weight:600}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.sub{color:var(--muted);font-size:14px;margin:0}
+.mebtn{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;white-space:nowrap}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.card.flush{padding:0;gap:0}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;border-radius:999px;padding:3px 10px}
+.pill.ok{background:var(--goodbg);color:var(--good)}.pill.sw{background:var(--swapbg);color:var(--swap)}.pill.bad{background:var(--badbg);color:var(--bad)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none}
+.now{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.now .card{gap:2px;padding:12px 14px}
+.now .post{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);font-weight:600}
+.now .who{font-size:20px;font-weight:700}
+.now .till{font-size:13px;color:var(--faint);font-variant-numeric:tabular-nums}
+.big{font-family:Rubik,Arial,sans-serif;font-size:28px;font-weight:600;line-height:1.2}
+.alert{border-radius:12px;padding:10px 14px;font-size:14px}
+.alert.sw{background:var(--swapbg);color:var(--ink);border:1px solid var(--swap)}
+.alert.bad{background:var(--badbg);border:1px solid var(--bad)}
+.alert ul{margin:4px 0 0;padding-inline-start:18px}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.days button{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:8px 0;min-height:48px;cursor:pointer;display:flex;flex-direction:column;align-items:center;line-height:1.2}
+.days button span{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.days button[aria-selected="true"]{background:var(--acc);border-color:var(--acc);color:var(--card)}
+.days button[aria-selected="true"] span{color:var(--card)}
+.days button.today{border-color:var(--acc)}
+table{border-collapse:collapse;width:100%;table-layout:fixed}
+th,td{padding:10px 4px;text-align:center;vertical-align:top;font-size:15px;word-break:break-word}
+thead th{font-size:14px;font-weight:600;border-bottom:1px solid var(--line)}
+thead .dot{display:block;margin:0 auto 4px}
+tbody tr+tr th,tbody tr+tr td{border-top:1px solid var(--line)}
+tbody th{width:64px;text-align:start;padding-inline-start:12px;font-weight:600}
+tbody th small{display:block;font-weight:400;font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+tr.off th,tr.off td{background:var(--soft);color:var(--muted);font-size:13px}
+td.sw{background:var(--swapbg)}td.nt{background:var(--notebg)}
+td small{display:block;font-size:11px;line-height:1.3;margin-top:2px}
+td.sw small{color:var(--swap)}td.nt small{color:var(--note)}
+.n.me{background:var(--acc);color:var(--card);border-radius:6px;padding:1px 5px;font-weight:700}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;gap:12px;padding:12px 16px}
+.list li+li{border-top:1px solid var(--line)}
+.list .d{width:56px;flex:none;font-weight:600}.list .d span{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.list .s{flex:1;min-width:0;font-weight:600}.list .s span{display:block;font-weight:400;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.list .warn{color:var(--bad);font-size:12px;font-weight:600}
+.cal{font-size:13px;color:var(--acc);text-decoration:none;white-space:nowrap;border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.stats div{background:var(--soft);border-radius:10px;padding:10px 4px}
+.stats b{display:block;font-family:Rubik,Arial,sans-serif;font-size:24px}
+.stats span{font-size:12px;color:var(--muted)}
+.seg{display:flex;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{flex:1;font:inherit;font-weight:600;border:0;background:none;color:var(--muted);padding:9px 6px;border-radius:8px;cursor:pointer}
+.seg button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(16,24,40,.12)}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:14px;font-weight:600}
+select,textarea,input[type=text],input[type=number]{font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);width:100%}
+textarea{min-height:90px;resize:vertical}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer}
+.chip small{color:var(--muted);font-size:12px}
+.chip[aria-pressed="true"]{background:var(--acc);color:var(--card);border-color:var(--acc)}
+.chip[aria-pressed="true"] small{color:var(--card)}
+.opt{display:flex;align-items:center;gap:10px;padding:10px 12px;font:inherit;color:var(--ink);text-align:start;width:100%;border:1px solid var(--line);border-radius:10px;cursor:pointer;background:var(--card)}
+.opt[aria-pressed="true"]{border-color:var(--acc);background:var(--accbg)}
+.opt .s{flex:1}.opt .s span{display:block;font-size:13px;color:var(--muted)}
+.grid7{display:grid;grid-template-columns:52px repeat(4,1fr) 56px;gap:4px;align-items:center;font-size:13px}
+.grid7 .h{text-align:center;color:var(--muted);font-weight:600}
+.grid7 .dn{font-weight:600;line-height:1.1}.grid7 .dn span{display:block;font-weight:400;font-size:11px;color:var(--muted)}
+.tg{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:8px;min-height:40px;cursor:pointer}
+.tg[aria-pressed="true"]{background:var(--badbg);border-color:var(--bad);color:var(--bad);font-weight:700}
+.preview{white-space:pre-wrap;background:var(--soft);border:1px dashed var(--line);border-radius:10px;padding:10px 12px;font-size:14px;max-height:260px;overflow:auto}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:inherit;font-weight:700;font-size:16px;border:0;border-radius:12px;padding:12px 16px;cursor:pointer;text-decoration:none;text-align:center;flex:1;min-width:140px}
+.btn.wa{background:#1f9d55;color:#fff}
+.btn.sec{background:var(--soft);color:var(--ink);border:1px solid var(--line)}
+.btn.pri{background:var(--acc);color:var(--card)}
+.btn[aria-disabled="true"]{opacity:.45;pointer-events:none}
+.hint{font-size:13px;color:var(--muted)}
+.empty{color:var(--muted);text-align:center;padding:18px}
+.tw{overflow-x:auto}
+.tabs{position:fixed;inset-inline:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
+.tabs button{font:inherit;font-size:12px;font-weight:600;border:0;background:none;color:var(--muted);padding:8px 2px 10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}
+.tabs svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tabs button[aria-selected="true"]{color:var(--acc)}
+button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.sheet{position:fixed;inset:0;background:rgba(10,14,22,.45);display:flex;align-items:flex-end;justify-content:center;z-index:9}
+.sheet .card{width:100%;max-width:520px;border-radius:18px 18px 0 0;max-height:80vh;overflow:auto;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+.toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:14px;z-index:10}
+@media (max-width:420px){.now{grid-template-columns:1fr 1fr}.now .who{font-size:18px}th,td{font-size:14px}}
+@media (prefers-reduced-motion:no-preference){.view{animation:fade .15s ease}}
+@keyframes fade{from{opacity:.6}to{opacity:1}}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div><h1>בונקר צנובר</h1><p class="sub" id="weeklbl"></p></div>
+    <button class="mebtn" id="mebtn" type="button" hidden>מי אני?</button>
+  </div>
+  <main id="view" class="view"></main>
+  <div id="static"></div>
+</div>
+
+<nav class="tabs" role="tablist" id="tabs" hidden>
+  <button type="button" role="tab" data-t="now"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>עכשיו</button>
+  <button type="button" role="tab" data-t="week"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>סידור</button>
+  <button type="button" role="tab" data-t="mine"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>שלי</button>
+  <button type="button" role="tab" data-t="ask"><svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>בקשות</button>
+  <button type="button" role="tab" data-t="plan"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/><path d="M17 15l2 2 3-4"/></svg>שיבוץ</button>
+</nav>
+
+</div><div id="lock" class="wrap" hidden><div class="card" style="margin-top:12vh;text-align:center;align-items:center">
+<img src="icon-192.png" alt="" width="72" height="72" style="border-radius:16px">
+<h1>בונקר צנובר</h1><p class="hint" id="lockmsg">הקלידו את קוד הכניסה שקיבלתם מראש הצוות</p>
+<form id="lockform" style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:260px">
+<input id="lockcode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="••••••" style="text-align:center;font-size:22px;letter-spacing:6px">
+<button class="btn pri" type="submit" id="lockbtn">כניסה</button></form></div></div><script>
+function BOOT(DATA){
+document.getElementById("app").hidden = false;
+
+
+// ---------- model ----------
+const SH = ["בוקר","צהריים","ערב","לילה"];
+const DAYN = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
+const EARLY = {"326":true,"ש״ג":true};               // these posts start 15 min earlier
+const START = [7,13,19,25];
+const pad = n => String(n).padStart(2,"0");
+const W0 = new Date(DATA.week_start + "T00:00:00");
+const addDays = (d,n) => new Date(d.getFullYear(), d.getMonth(), d.getDate()+n);
+const dm = d => d.getDate() + "." + (d.getMonth()+1);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const nameOf = c => typeof c === "string" ? c : c.t;
+const posts = DATA.posts;
+const firstTok = s => s.split(/[ ,]/)[0].replace("יי","י");
+const same = (a,b) => a === b || firstTok(a) === firstTok(b);
+
+function slotTime(post, day, s){
+  // wall-clock hours, so the DST change (25.10) does not shift shifts by an hour
+  const y = W0.getFullYear(), m = W0.getMonth(), d = W0.getDate() + day;
+  const start = EARLY[post] ? new Date(y, m, d, START[s] - 1, 45) : new Date(y, m, d, START[s], 0);
+  const end = new Date(y, m, d, START[s] + 6, 0);
+  return {start, end};
+}
+const hhmm = d => pad(d.getHours()) + ":" + pad(d.getMinutes());
+const hoursTxt = (post, day, s) => { const t = slotTime(post, day, s); return hhmm(t.start) + "-" + hhmm(t.end); };
+
+// every shift in the week, flattened
+const SLOTS = [];
+posts.forEach(p => p.rows.slice(0,4).forEach((row, s) => row[2].forEach((c, day) => {
+  const t = slotTime(p.name, day, s);
+  SLOTS.push({post:p.name, color:p.color, day, s, who:nameOf(c), cell:c, ...t});
+})));
+const PEOPLE = [...new Set(posts.flatMap(p => p.rows.flatMap(r => r[2].flatMap(c => nameOf(c).split(", ")))))].sort((a,b)=>a.localeCompare(b,"he"));
+const postOf = name => { for (const p of posts) if (p.rows.some(r => r[2].some(c => nameOf(c).split(", ").some(n => same(n,name))))) return p.name; return ""; };
+const isWeekend = (day, s) => day >= 5 || (day === 4 && s >= 2);
+const myShifts = me => SLOTS.filter(x => same(x.who, me)).sort((a,b)=>a.start-b.start);
+
+// ---------- state ----------
+const store = { get(k,d){ try { const v = localStorage.getItem("bz_"+k); return v === null ? d : JSON.parse(v); } catch(e){ return d; } },
+                set(k,v){ try { localStorage.setItem("bz_"+k, JSON.stringify(v)); } catch(e){} } };
+let me = store.get("me", "");
+let tab = store.get("tab", "now");
+const nowD = new Date();
+let day = (nowD >= W0 && nowD < addDays(W0,7)) ? Math.floor((nowD - W0) / 864e5) : 0;
+let askMode = "swap";
+
+const view = document.getElementById("view");
+document.getElementById("weeklbl").textContent = "שבוע " + dm(W0) + " עד " + dm(addDays(W0,6)) + " · עודכן " + DATA.updated;
+
+function toast(t){ const el = document.createElement("div"); el.className = "toast"; el.textContent = t; document.body.appendChild(el); setTimeout(()=>el.remove(), 1800); }
+async function copy(text){
+  try { await navigator.clipboard.writeText(text); toast("הועתק"); }
+  catch(e){ const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); toast("הועתק"); }catch(_){ toast("סמן והעתק ידנית"); } ta.remove(); }
+}
+const waLink = text => "https://wa.me/?text=" + encodeURIComponent(text);
+
+// ---------- who am I ----------
+function pickMe(){
+  const sh = document.createElement("div"); sh.className = "sheet";
+  sh.innerHTML = `<div class="card"><h2>מי אתה?</h2><p class="hint">נשמר רק בטלפון שלך. בלי סיסמה.</p>
+    <div class="chips">${PEOPLE.map(n=>`<button type="button" class="chip" aria-pressed="${n===me}">${esc(n)} <small>${esc(postOf(n))}</small></button>`).join("")}</div>
+    <button type="button" class="btn sec" id="closeMe">סגור</button></div>`;
+  document.body.appendChild(sh);
+  sh.querySelectorAll(".chip").forEach((b,i)=>b.onclick=()=>{ me = PEOPLE[i]; store.set("me", me); sh.remove(); render(); });
+  sh.querySelector("#closeMe").onclick = () => sh.remove();
+  sh.onclick = e => { if (e.target === sh) sh.remove(); };
+}
+document.getElementById("mebtn").onclick = pickMe;
+
+// ---------- views ----------
+function viewNow(){
+  const now = new Date();
+  let h = "";
+  const swaps = DATA.applied.length;
+  h += swaps ? `<div class="alert sw"><b>${swaps === 1 ? "החלפה אחת" : swaps + " החלפות"} השבוע</b> מהקבוצה, כבר בטבלה (בכתום).<ul>${DATA.applied.map(a=>`<li>${esc(a)}</li>`).join("")}</ul></div>`
+             : `<span class="pill ok">✓ אין החלפות השבוע</span>`;
+  if (DATA.flags.length) h += `<div class="alert bad"><b>לבדיקה מול ראש הצוות</b> (לא עודכן בטבלה)<ul>${DATA.flags.map(f=>`<li>${esc(f)}</li>`).join("")}</ul></div>`;
+
+  const on = posts.map(p => SLOTS.find(x => x.post === p.name && x.start <= now && now < x.end));
+  if (on.some(Boolean)) {
+    h += `<h2>במשמרת עכשיו</h2><div class="now">` + posts.map((p,i)=>{ const x = on[i];
+      return `<div class="card"><div class="post"><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}</div>
+        <div class="who">${x ? `<span class="n${same(x.who,me)?" me":""}">${esc(x.who)}</span>` : "—"}</div>
+        <div class="till">${x ? SH[x.s] + " · עד " + hhmm(x.end) : ""}</div></div>`; }).join("") + `</div>`;
+  } else {
+    h += `<div class="card"><h2>${now < W0 ? "הסידור מתחיל ביום ראשון " + dm(W0) : "השבוע הזה הסתיים"}</h2><p class="hint">${now < W0 ? "הנה מי פותח:" : "מחכה לסידור החדש."}</p>
+      ${now < W0 ? `<div class="now">${posts.map(p=>{ const x = SLOTS.find(y=>y.post===p.name && y.day===0 && y.s===0);
+        return `<div class="card"><div class="post"><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}</div><div class="who">${esc(x.who)}</div><div class="till">מ־${hhmm(x.start)}</div></div>`; }).join("")}</div>` : ""}</div>`;
+  }
+
+  if (me) {
+    const next = myShifts(me).find(x => x.end > now);
+    if (next) {
+      const hrs = Math.max(0, (next.start - now) / 36e5);
+      const when = next.start <= now ? "עכשיו במשמרת" : hrs < 24 ? `בעוד ${Math.floor(hrs)} ש׳ ${Math.round((hrs%1)*60)} ד׳` : `בעוד ${Math.round(hrs/24)} ימים`;
+      h += `<div class="card"><h3>המשמרת הבאה שלך</h3><div class="big">${DAYN[next.day]} ${dm(addDays(W0,next.day))} · ${SH[next.s]}</div>
+        <div class="hint"><i class="dot" style="background:var(${next.color})"></i> עמדה ${esc(next.post)} · ${hhmm(next.start)}-${hhmm(next.end)} · <b>${when}</b></div></div>`;
+    } else h += `<div class="card"><h3>המשמרת הבאה שלך</h3><p class="hint">אין לך עוד משמרות השבוע.</p></div>`;
+  } else h += `<button type="button" class="btn pri" id="setme">בחר את השם שלך כדי לראות את המשמרות שלך</button>`;
+  view.innerHTML = h;
+  const sm = document.getElementById("setme"); if (sm) sm.onclick = pickMe;
+}
+
+function viewWeek(){
+  const today = new Date();
+  let h = `<div class="days" role="tablist">${DAYN.map((d,i)=>{ const dt = addDays(W0,i);
+    const isT = today >= dt && today < addDays(dt,1);
+    return `<button type="button" role="tab" class="${isT?"today":""}" aria-selected="${i===day}" data-i="${i}">${d}<span>${isT?"היום":dm(dt)}</span></button>`; }).join("")}</div>`;
+  h += `<div class="card flush"><table><thead><tr><th style="width:64px"></th>${posts.map(p=>`<th><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}</th>`).join("")}</tr></thead><tbody>`;
+  for (let r = 0; r < 5; r++) {
+    h += `<tr class="${r===4?"off":""}"><th>${r<4?SH[r]:"חופש"}${r<4?`<small>${["07-13","13-19","19-01","01-07"][r]}</small>`:""}</th>`;
+    for (const p of posts) {
+      const c = p.rows[r][2][day]; const t = nameOf(c);
+      const cls = typeof c === "string" ? "" : (c.c === "swap" ? "sw" : "nt");
+      h += `<td class="${cls}">${t.split(", ").map(n=>`<span class="n${me && same(n,me)?" me":""}">${esc(n)}</span>`).join(", ")}${typeof c==="string"?"":`<small>${esc(c.m)}</small>`}</td>`;
+    }
+    h += `</tr>`;
+  }
+  h += `</tbody></table></div><p class="hint">כתום = הוחלף בקבוצה · סגול = הערה בסידור · 326 ו־ש״ג מתחילות רבע שעה קודם</p>`;
+  view.innerHTML = h;
+  view.querySelectorAll(".days button").forEach(b => b.onclick = () => { day = +b.dataset.i; viewWeek(); });
+}
+
+function restWarnings(list){
+  const w = new Map();
+  for (let i = 1; i < list.length; i++) {
+    const gap = (list[i].start - list[i-1].end) / 36e5;
+    if (gap < 11) w.set(list[i], `רק ${Math.round(gap*10)/10} שעות מנוחה לפני`);
+  }
+  return w;
+}
+function calLink(x){
+  const f = d => d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + "T" + pad(d.getHours()) + pad(d.getMinutes()) + "00";
+  return "https://calendar.google.com/calendar/render?action=TEMPLATE&ctz=Asia/Jerusalem&text=" + encodeURIComponent("צנובר · " + x.post + " · " + SH[x.s]) + "&dates=" + f(x.start) + "/" + f(x.end);
+}
+function viewMine(){
+  if (!me) { view.innerHTML = `<div class="card"><h2>המשמרות שלי</h2><p class="hint">בחר את השם שלך פעם אחת. זה נשמר בטלפון.</p><button type="button" class="btn pri" id="setme">בחירת שם</button></div>`; document.getElementById("setme").onclick = pickMe; return; }
+  const list = myShifts(me);
+  const nights = list.filter(x=>x.s===3).length, we = list.filter(x=>isWeekend(x.day,x.s)).length;
+  const team = PEOPLE.filter(n => postOf(n) === postOf(me) && myShifts(n).length);
+  const avgN = team.length ? (team.reduce((a,n)=>a+myShifts(n).filter(x=>x.s===3).length,0)/team.length) : 0;
+  const warn = restWarnings(list);
+  let h = `<div class="card"><h2>${esc(me)}</h2><div class="stats"><div><b>${list.length}</b><span>משמרות השבוע</span></div><div><b>${nights}</b><span>לילות (ממוצע בעמדה ${avgN.toFixed(1)})</span></div><div><b>${we}</b><span>סופ״ש</span></div></div>`;
+  if (nights > avgN + 0.9) h += `<div class="alert bad">יש לך יותר לילות מהממוצע בעמדה שלך השבוע.</div>`;
+  if (warn.size) h += `<div class="alert bad">יש לך ${warn.size === 1 ? "משמרת אחת" : warn.size + " משמרות"} עם פחות מ־11 שעות מנוחה לפניה. מסומן למטה.</div>`;
+  h += `</div><div class="card flush"><ul class="list">`;
+  h += list.length ? list.map(x=>`<li><div class="d">${DAYN[x.day]}<span>${dm(addDays(W0,x.day))}</span></div>
+      <div class="s"><i class="dot" style="background:var(${x.color})"></i> ${SH[x.s]} · ${esc(x.post)}<span>${hhmm(x.start)}-${hhmm(x.end)}${typeof x.cell!=="string"?" · "+esc(x.cell.m):""}</span>${warn.has(x)?`<div class="warn">⚠ ${warn.get(x)}</div>`:""}</div>
+      <a class="cal" href="${calLink(x)}" target="_blank" rel="noopener">+ ליומן</a></li>`).join("")
+    : `<li class="empty">אין לך משמרות השבוע.</li>`;
+  h += `</ul></div><p class="hint">"+ ליומן" פותח את Google Calendar עם המשמרת מוכנה לשמירה.</p>`;
+  view.innerHTML = h;
+}
+
+// ---- requests: swap + constraints ----
+let swapPick = null, swapWith = "", swapBack = null;
+function swapText(){
+  const x = swapPick; if (!x || !swapWith) return "";
+  const d = addDays(W0, x.day);
+  let t = `*פורמט החלפת משמרת*\nשם השומר המבקש: ${me}\n • תאריך המשמרת המקורית: ${d.getDate()}/${d.getMonth()+1}\n • שעת המשמרת: ${hoursTxt(x.post,x.day,x.s)}\n • סוג המשמרת : ${SH[x.s]}\n • שם השומר המחליף : ${swapWith}\n  • עמדה: ${x.post}\n`;
+  if (swapBack) { const b = swapBack, bd = addDays(W0, b.day);
+    t += `תאריך משמרת חלופית: ${bd.getDate()}/${bd.getMonth()+1}\nמשמרת ${SH[b.s]} : ${hoursTxt(b.post,b.day,b.s)}\nשם השומר: ${me}\nעמדה: ${b.post}\n`;
+  } else t += `תאריך משמרת חלופית: אין\n`;
+  return t + `אישור השומר המחליף👍`;
+}
+function candidates(x){
+  return PEOPLE.filter(n => !same(n, me)).map(n => {
+    const mine = myShifts(n);
+    if (mine.some(y => y.day === x.day)) return null;              // already works that day
+    const clash = mine.some(y => Math.abs(y.start - x.end) < 8*36e5 || Math.abs(x.start - y.end) < 8*36e5);
+    return { n, samePost: postOf(n) === x.post, clash };
+  }).filter(Boolean).sort((a,b) => (b.samePost - a.samePost) || (a.clash - b.clash) || a.n.localeCompare(b.n,"he"));
+}
+let cons = store.get("cons", {});   // {"d-s": true}
+let consNote = store.get("consNote", "");
+const NW0 = addDays(W0, 7);
+function consText(){
+  const lines = [];
+  for (let d = 0; d < 7; d++) {
+    const ss = [0,1,2,3].filter(s => cons[d+"-"+s]);
+    if (!ss.length) continue;
+    lines.push(` • ${DAYN[d]} ${dm(addDays(NW0,d))}: לא יכול ${ss.length===4 ? "כל היום" : ss.map(s=>SH[s]).join(", ")}`);
+  }
+  return `*פורמט אילוצים*\nשם: ${me}\nשבוע: ${dm(NW0)}-${dm(addDays(NW0,6))}\n` + (lines.length ? lines.join("\n") : " • אין אילוצים, זמין לכל משמרת") + (consNote.trim() ? `\nהערה: ${consNote.trim()}` : "");
+}
+function viewAsk(){
+  if (!me) { view.innerHTML = `<div class="card"><h2>בקשות</h2><p class="hint">קודם בחר את השם שלך.</p><button type="button" class="btn pri" id="setme">בחירת שם</button></div>`; document.getElementById("setme").onclick = pickMe; return; }
+  let h = `<div class="seg" role="tablist"><button type="button" role="tab" data-m="swap" aria-selected="${askMode==="swap"}">בקשת החלפה</button><button type="button" role="tab" data-m="cons" aria-selected="${askMode==="cons"}">אילוצים לשבוע הבא</button></div>`;
+  if (askMode === "swap") {
+    const mine = myShifts(me).filter(x => x.end > new Date());
+    h += `<div class="card"><h3>1. איזו משמרת להחליף?</h3>`;
+    h += mine.length ? mine.map((x,i)=>`<button type="button" class="opt" data-pick="${i}" aria-pressed="${swapPick===x}"><i class="dot" style="background:var(${x.color})"></i><div class="s"><b>${DAYN[x.day]} ${dm(addDays(W0,x.day))} · ${SH[x.s]}</b><span>עמדה ${esc(x.post)} · ${hhmm(x.start)}-${hhmm(x.end)}</span></div></button>`).join("")
+      : `<p class="empty">אין לך משמרות פתוחות השבוע.</p>`;
+    h += `</div>`;
+    if (swapPick) {
+      const cand = candidates(swapPick);
+      h += `<div class="card"><h3>2. מי מחליף אותך?</h3><p class="hint">מוצגים רק מי שלא עובד באותו יום. קודם אנשי העמדה שלך.</p><div class="chips">${cand.map(c=>`<button type="button" class="chip" data-with="${esc(c.n)}" aria-pressed="${c.n===swapWith}">${esc(c.n)} <small>${c.samePost?"אותה עמדה":esc(postOf(c.n))}${c.clash?" · צמוד למשמרת":""}</small></button>`).join("")}</div></div>`;
+    }
+    if (swapPick && swapWith) {
+      const back = myShifts(swapWith);
+      h += `<div class="card"><h3>3. לוקח ממנו משמרת בתמורה? (לא חובה)</h3>
+        <button type="button" class="opt" data-back="-1" aria-pressed="${!swapBack}"><div class="s"><b>לא, רק החלפה</b></div></button>
+        ${back.map((x,i)=>`<button type="button" class="opt" data-back="${i}" aria-pressed="${swapBack===x}"><i class="dot" style="background:var(${x.color})"></i><div class="s"><b>${DAYN[x.day]} ${dm(addDays(W0,x.day))} · ${SH[x.s]}</b><span>עמדה ${esc(x.post)}</span></div></button>`).join("")}</div>`;
+      const t = swapText();
+      h += `<div class="card"><h3>4. שלח לקבוצת "החלפת משמרת"</h3><div class="preview">${esc(t)}</div>
+        <div class="actions"><a class="btn wa" href="${waLink(t)}" target="_blank" rel="noopener">שלח בוואטסאפ</a><button type="button" class="btn sec" id="cp">העתק</button></div>
+        <p class="hint">בוואטסאפ בחר את הקבוצה ושלח. אחרי ש${esc(swapWith)} מאשר 👍, הטבלה כאן מתעדכנת לבד.</p></div>`;
+    }
+    view.innerHTML = h;
+    view.querySelectorAll("[data-pick]").forEach(b => b.onclick = () => { swapPick = mine[+b.dataset.pick]; swapWith = ""; swapBack = null; viewAsk(); });
+    view.querySelectorAll("[data-with]").forEach(b => b.onclick = () => { swapWith = b.dataset.with; swapBack = null; viewAsk(); });
+    view.querySelectorAll("[data-back]").forEach(b => b.onclick = () => { const i = +b.dataset.back; swapBack = i < 0 ? null : myShifts(swapWith)[i]; viewAsk(); });
+    const cp = document.getElementById("cp"); if (cp) cp.onclick = () => copy(swapText());
+  } else {
+    h += `<div class="card"><h3>מתי אתה <u>לא</u> יכול? (${dm(NW0)}-${dm(addDays(NW0,6))})</h3><p class="hint">לחץ על משבצת כדי לסמן. אדום = לא יכול.</p>
+      <div class="grid7"><span></span>${SH.map(s=>`<span class="h">${s}</span>`).join("")}<span class="h">כל היום</span>`;
+    for (let d = 0; d < 7; d++) {
+      const all = [0,1,2,3].every(s => cons[d+"-"+s]);
+      h += `<div class="dn">${DAYN[d]}<span>${dm(addDays(NW0,d))}</span></div>` + [0,1,2,3].map(s=>`<button type="button" class="tg" data-c="${d}-${s}" aria-pressed="${!!cons[d+"-"+s]}" aria-label="${DAYN[d]} ${SH[s]}">${cons[d+"-"+s]?"✕":""}</button>`).join("") + `<button type="button" class="tg" data-all="${d}" aria-pressed="${all}">${all?"✕":"יום"}</button>`;
+    }
+    h += `</div><label class="f">הערה לראש הצוות (לא חובה)<textarea id="cnote" placeholder="למשל: מעדיף לא לילה ביום חמישי">${esc(consNote)}</textarea></label></div>`;
+    const t = consText();
+    h += `<div class="card"><h3>שלח לראש הצוות</h3><div class="preview">${esc(t)}</div>
+      <div class="actions"><a class="btn wa" id="wa" href="${waLink(t)}" target="_blank" rel="noopener">שלח בוואטסאפ</a><button type="button" class="btn sec" id="cp">העתק</button></div>
+      <p class="hint">בוואטסאפ בחר את ראש הצוות. ההודעה כתובה בפורמט קבוע, כך שהוא מדביק את כולן ב"שיבוץ" והסידור נבנה לבד.</p></div>`;
+    view.innerHTML = h;
+    const refresh = () => { store.set("cons", cons); viewAsk(); };
+    view.querySelectorAll("[data-c]").forEach(b => b.onclick = () => { const k = b.dataset.c; if (cons[k]) delete cons[k]; else cons[k] = true; refresh(); });
+    view.querySelectorAll("[data-all]").forEach(b => b.onclick = () => { const d = b.dataset.all; const all = [0,1,2,3].every(s=>cons[d+"-"+s]); [0,1,2,3].forEach(s => { if (all) delete cons[d+"-"+s]; else cons[d+"-"+s] = true; }); refresh(); });
+    const cn = document.getElementById("cnote");
+    cn.oninput = () => { consNote = cn.value; store.set("consNote", consNote); const t2 = consText(); view.querySelector(".preview").textContent = t2; document.getElementById("wa").href = waLink(t2); };
+    document.getElementById("cp").onclick = () => copy(consText());
+  }
+  view.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { askMode = b.dataset.m; viewAsk(); });
+}
+
+// ---- team lead: build a fair roster ----
+let plan = store.get("plan", {post: posts[0].name, team: "", paste: "", rest: 11, out: null});
+function parseCons(text){
+  const res = {};   // name -> Set("d-s")
+  const blocks = text.split(/פורמט אילוצים/).slice(1);
+  for (const b of blocks) {
+    const nm = (b.match(/שם\s*:\s*(.+)/) || [])[1]; if (!nm) continue;
+    const name = nm.trim(); const set = res[name] = res[name] || new Set();
+    for (const line of b.split("\n")) {
+      if (!/לא יכול/.test(line)) continue;
+      let d = DAYN.findIndex(n => line.includes(n));
+      const md = line.match(/(\d{1,2})\.(\d{1,2})/);
+      if (md) { const dt = new Date(NW0.getFullYear(), +md[2]-1, +md[1]); const k = Math.round((dt - NW0)/864e5); if (k >= 0 && k < 7) d = k; }
+      if (d < 0) continue;
+      const ss = /כל היום/.test(line) ? [0,1,2,3] : [0,1,2,3].filter(s => line.includes(SH[s]) || (s===1 && line.includes("צהרים")));
+      ss.forEach(s => set.add(d+"-"+s));
+    }
+  }
+  return res;
+}
+function buildRoster(team, consMap, minRest){
+  const slots = []; for (let d = 0; d < 7; d++) for (let s = 0; s < 4; s++) slots.push({d, s, st: d*24 + START[s], en: d*24 + START[s] + 6});
+  const blocked = (n, k) => { for (const [cn, set] of Object.entries(consMap)) if (same(cn, n) && set.has(k)) return true; return false; };
+  let best = null;
+  for (let run = 0; run < 400; run++) {
+    const st = Object.fromEntries(team.map(n => [n, {cnt:0, nt:0, we:0, last:-99, days:new Set()}]));
+    const out = [], warns = [];
+    for (const sl of slots) {
+      const k = sl.d + "-" + sl.s, wkd = isWeekend(sl.d, sl.s);
+      const score = n => { const x = st[n]; return x.cnt*10 + (sl.s===3 ? x.nt*9 : 0) + (wkd ? x.we*7 : 0) + Math.random()*4; };
+      let pool = team.filter(n => !blocked(n,k) && !st[n].days.has(sl.d) && sl.st - st[n].last >= minRest);
+      if (!pool.length) { pool = team.filter(n => !blocked(n,k) && !st[n].days.has(sl.d)); if (pool.length) warns.push(`${DAYN[sl.d]} ${SH[sl.s]}: פחות מ־${minRest} שעות מנוחה`); }
+      if (!pool.length) { out.push("—"); warns.push(`${DAYN[sl.d]} ${SH[sl.s]}: אין אף אחד פנוי`); continue; }
+      pool.sort((a,b) => score(a) - score(b));
+      const n = pool[0], x = st[n]; x.cnt++; if (sl.s===3) x.nt++; if (wkd) x.we++; x.last = sl.en; x.days.add(sl.d); out.push(n);
+    }
+    const v = a => { const m = a.reduce((p,c)=>p+c,0)/a.length; return a.reduce((p,c)=>p+(c-m)**2,0); };
+    const vals = Object.values(st);
+    const cost = warns.length*100 + v(vals.map(x=>x.cnt))*5 + v(vals.map(x=>x.nt))*3 + v(vals.map(x=>x.we))*2;
+    if (!best || cost < best.cost) best = {cost, out, warns, st: Object.fromEntries(Object.entries(st).map(([n,x])=>[n,{cnt:x.cnt,nt:x.nt,we:x.we}]))};
+  }
+  return best;
+}
+function rosterText(p, team, out){
+  let t = `*סידור עמדה ${p} · ${dm(NW0)}-${dm(addDays(NW0,6))}*\n`;
+  for (let d = 0; d < 7; d++) {
+    const w = [0,1,2,3].map(s => out[d*4+s]);
+    const off = team.filter(n => !w.includes(n));
+    t += `\n*${DAYN[d]} ${dm(addDays(NW0,d))}*\n` + SH.map((s,i)=>`${s}: ${w[i]}`).join(" | ") + (off.length ? `\nחופש: ${off.join(", ")}` : "");
+  }
+  return t;
+}
+function viewPlan(){
+  if (!plan.team) plan.team = PEOPLE.filter(n => postOf(n) === plan.post).join("\n");
+  let h = `<div class="card"><h2>שיבוץ לשבוע הבא</h2><p class="hint">לראש הצוות. ${dm(NW0)}-${dm(addDays(NW0,6))}. הכלי מחלק משמרות שווה, מאזן לילות וסופ״ש, ושומר על שעות מנוחה.</p>
+    <label class="f">עמדה<select id="ppost">${posts.map(p=>`<option${p.name===plan.post?" selected":""}>${esc(p.name)}</option>`).join("")}</select></label>
+    <label class="f">שומרים בעמדה (שם בכל שורה)<textarea id="pteam">${esc(plan.team)}</textarea></label>
+    <label class="f">הדבק כאן את הודעות האילוצים מהוואטסאפ<textarea id="ppaste" placeholder="אפשר להדביק כמה הודעות ביחד">${esc(plan.paste)}</textarea></label>
+    <label class="f">מינימום שעות מנוחה בין משמרות<input type="number" id="prest" min="0" max="24" value="${plan.rest}"></label>
+    <div id="pcons" class="hint"></div>
+    <button type="button" class="btn pri" id="pgo">בנה סידור</button></div><div id="pout"></div>`;
+  view.innerHTML = h;
+  const [ppost, pteam, ppaste, prest] = ["ppost","pteam","ppaste","prest"].map(id => document.getElementById(id));
+  const save = () => { plan.post = ppost.value; plan.team = pteam.value; plan.paste = ppaste.value; plan.rest = +prest.value || 0; store.set("plan", plan); };
+  const showCons = () => { const m = parseCons(ppaste.value); const ks = Object.keys(m);
+    document.getElementById("pcons").innerHTML = ks.length ? "זוהו אילוצים מ: " + ks.map(k=>`<b>${esc(k)}</b> (${m[k].size})`).join(", ") : "עוד לא הודבקו אילוצים."; };
+  ppost.onchange = () => { plan.team = PEOPLE.filter(n => postOf(n) === ppost.value).join("\n"); pteam.value = plan.team; plan.out = null; save(); };
+  [pteam, ppaste, prest].forEach(el => el.oninput = () => { save(); showCons(); });
+  showCons();
+  const draw = () => {
+    const o = plan.out; if (!o) return;
+    const team = plan.team.split("\n").map(s=>s.trim()).filter(Boolean);
+    let t = `<div class="card flush"><div class="tw"><table><thead><tr><th style="width:64px"></th>${SH.map(s=>`<th>${s}</th>`).join("")}</tr></thead><tbody>`;
+    for (let d = 0; d < 7; d++) t += `<tr><th>${DAYN[d]}<small>${dm(addDays(NW0,d))}</small></th>${[0,1,2,3].map(s=>`<td>${esc(o.out[d*4+s])}</td>`).join("")}</tr>`;
+    t += `</tbody></table></div></div>`;
+    t += `<div class="card"><h3>איזון בין השומרים</h3><div class="tw"><table><thead><tr><th style="text-align:start">שומר</th><th>משמרות</th><th>לילות</th><th>סופ״ש</th></tr></thead><tbody>${Object.entries(o.st).map(([n,x])=>`<tr><th style="font-weight:600">${esc(n)}</th><td>${x.cnt}</td><td>${x.nt}</td><td>${x.we}</td></tr>`).join("")}</tbody></table></div>
+      ${o.warns.length ? `<div class="alert bad"><b>שים לב</b><ul>${o.warns.map(w=>`<li>${esc(w)}</li>`).join("")}</ul></div>` : `<span class="pill ok">✓ כל האילוצים ושעות המנוחה נשמרו</span>`}</div>`;
+    const txt = rosterText(plan.post, team, o.out);
+    t += `<div class="card"><h3>שלח את הסידור</h3><div class="actions"><a class="btn wa" href="${waLink(txt)}" target="_blank" rel="noopener">שלח בוואטסאפ</a><button type="button" class="btn sec" id="pcp">העתק</button><button type="button" class="btn sec" id="pre">ערבב שוב</button></div><p class="hint">לא מתאים? "ערבב שוב" בונה גרסה אחרת עם אותם כללים.</p></div>`;
+    document.getElementById("pout").innerHTML = t;
+    document.getElementById("pcp").onclick = () => copy(txt);
+    document.getElementById("pre").onclick = go;
+  };
+  const go = () => { save(); const team = plan.team.split("\n").map(s=>s.trim()).filter(Boolean);
+    if (team.length < 4) { toast("צריך לפחות 4 שומרים"); return; }
+    plan.out = buildRoster(team, parseCons(plan.paste), plan.rest); store.set("plan", plan); draw(); };
+  document.getElementById("pgo").onclick = go;
+  draw();
+}
+
+// ---------- shell ----------
+// scripts run: swap the pre-rendered roster for the interactive app
+document.getElementById("static").hidden = true;
+document.getElementById("tabs").hidden = false;
+document.getElementById("mebtn").hidden = false;
+const VIEWS = {now:viewNow, week:viewWeek, mine:viewMine, ask:viewAsk, plan:viewPlan};
+function render(){
+  document.getElementById("mebtn").textContent = me ? "אני: " + me : "מי אני?";
+  document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.t === tab));
+  (VIEWS[tab] || viewNow)();
+}
+document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { tab = b.dataset.t; store.set("tab", tab); render(); window.scrollTo(0,0); });
+render();
+setInterval(() => { if (tab === "now") viewNow(); }, 60000);
+
+}
+
+const b64d = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function decrypt(enc, code){
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(code), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey({name:"PBKDF2", salt:b64d(enc.salt), iterations:enc.iter, hash:"SHA-256"}, base, {name:"AES-GCM", length:256}, false, ["decrypt"]);
+  return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM", iv:b64d(enc.iv)}, key, b64d(enc.ct))));
+}
+const lsGet = k => { try { return localStorage.getItem(k); } catch(e) { return null; } };
+const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
+(async function start(){
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+  const lock = document.getElementById("lock"), msg = document.getElementById("lockmsg");
+  let enc;
+  try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
+  catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
+  const saved = lsGet("bz_code");
+  if (saved) { try { BOOT(await decrypt(enc, saved)); return; } catch(e) {} }
+  lock.hidden = false;
+  document.getElementById("lockform").onsubmit = async ev => {
+    ev.preventDefault();
+    const code = document.getElementById("lockcode").value.trim(), btn = document.getElementById("lockbtn");
+    btn.textContent = "בודק…";
+    try { const data = await decrypt(enc, code); lsSet("bz_code", code); lock.hidden = true; BOOT(data); }
+    catch(e) { btn.textContent = "כניסה"; msg.textContent = "הקוד לא נכון. נסו שוב."; msg.style.color = "var(--bad)"; }
+  };
+})();
+</script>
+</body></html>
