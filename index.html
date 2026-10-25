@@ -319,7 +319,7 @@ function candidates(x){
     let score = 0;
     const offRow = posts.find(p => p.name === postN)?.rows[4][2][x.day];
     if (offRow && nameOf(offRow).split(", ").some(o => same(o, n))) { why.push("ביום חופש באותו יום"); score += 3; }
-    if (postN === x.post) { why.push("מכיר את העמדה"); score += 2; }
+    if (postN === x.post) { why.push("מכיר את העמדה"); score += 3; }
     if (mine.length < avg - 0.4) { why.push(`רק ${mine.length} משמרות השבוע`); score += 2; }
     if (x.s === 3) { const nt = mine.filter(y=>y.s===3).length; if (nt === 0) { why.push("אין לו לילות השבוע"); score += 2; } }
     if (rest >= 24) { why.push("לא צמוד למשמרת אחרת שלו"); score += 1; }
