@@ -4,10 +4,10 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;600&family=Assistant:wght@400;600;700&display=swap">
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--ink:#1d2433;--muted:#667085;--faint:#98a2b3;--line:#e6e9ef;--soft:#f8f9fb;
---acc:#2f5fd0;--accbg:#e8eefc;--note:#7a4fd6;--notebg:#f3eefe;--swap:#b86e00;--swapbg:#fff3df;--bad:#c4321c;--badbg:#fdecea;--good:#1f8a4c;--goodbg:#e7f5ec;
+--acc:#2f5fd0;--accbg:#e8eefc;--note:#7a4fd6;--notebg:#f3eefe;--swap:#b86e00;--swapbg:#fff3df;--live:#0f7a6b;--livebg:#dff5f0;--bad:#c4321c;--badbg:#fdecea;--good:#1f8a4c;--goodbg:#e7f5ec;
 --p1:#2f6fb3;--p2:#1f8a70;--p3:#c0602f;--p4:#6d4fb8;--shadow:0 1px 2px rgba(16,24,40,.05)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#11151d;--card:#191f2a;--ink:#e7ebf2;--muted:#a3adbd;--faint:#6f7a8c;--line:#2a3140;--soft:#1d2430;--acc:#8fb0ff;--accbg:#22314f;--note:#b79bff;--notebg:#2a2342;--swap:#f2b04a;--swapbg:#3a2c12;--bad:#ff8a75;--badbg:#3d1d18;--good:#5fd08f;--goodbg:#173426;--p1:#6fa8e8;--p2:#4cc3a2;--p3:#ec9466;--p4:#a88cf0;--shadow:none}}
-:root[data-theme="dark"]{color-scheme:dark;--bg:#11151d;--card:#191f2a;--ink:#e7ebf2;--muted:#a3adbd;--faint:#6f7a8c;--line:#2a3140;--soft:#1d2430;--acc:#8fb0ff;--accbg:#22314f;--note:#b79bff;--notebg:#2a2342;--swap:#f2b04a;--swapbg:#3a2c12;--bad:#ff8a75;--badbg:#3d1d18;--good:#5fd08f;--goodbg:#173426;--p1:#6fa8e8;--p2:#4cc3a2;--p3:#ec9466;--p4:#a88cf0;--shadow:none}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#11151d;--card:#191f2a;--ink:#e7ebf2;--muted:#a3adbd;--faint:#6f7a8c;--line:#2a3140;--soft:#1d2430;--acc:#8fb0ff;--accbg:#22314f;--note:#b79bff;--notebg:#2a2342;--swap:#f2b04a;--swapbg:#3a2c12;--live:#4fd1b9;--livebg:#123a33;--bad:#ff8a75;--badbg:#3d1d18;--good:#5fd08f;--goodbg:#173426;--p1:#6fa8e8;--p2:#4cc3a2;--p3:#ec9466;--p4:#a88cf0;--shadow:none}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#11151d;--card:#191f2a;--ink:#e7ebf2;--muted:#a3adbd;--faint:#6f7a8c;--line:#2a3140;--soft:#1d2430;--acc:#8fb0ff;--accbg:#22314f;--note:#b79bff;--notebg:#2a2342;--swap:#f2b04a;--swapbg:#3a2c12;--live:#4fd1b9;--livebg:#123a33;--bad:#ff8a75;--badbg:#3d1d18;--good:#5fd08f;--goodbg:#173426;--p1:#6fa8e8;--p2:#4cc3a2;--p3:#ec9466;--p4:#a88cf0;--shadow:none}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 #static{display:flex;flex-direction:column;gap:12px}
@@ -48,7 +48,9 @@ tbody tr+tr th,tbody tr+tr td{border-top:1px solid var(--line)}
 tbody th{width:64px;text-align:start;padding-inline-start:12px;font-weight:600}
 tbody th small{display:block;font-weight:400;font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
 tr.off th,tr.off td{background:var(--soft);color:var(--muted);font-size:13px}
-td.sw{background:var(--swapbg)}td.nt{background:var(--notebg)}
+td.sw{background:var(--swapbg)}td.nt{background:var(--notebg)}td.lv{background:var(--livebg)}td.lv small{color:var(--live)}
+.ok-ck{color:var(--live);font-size:12px;font-weight:600}
+.alert.lv{background:var(--livebg);border:1px solid var(--live)}
 td small{display:block;font-size:11px;line-height:1.3;margin-top:2px}
 td.sw small{color:var(--swap)}td.nt small{color:var(--note)}
 .n.me{background:var(--acc);color:var(--card);border-radius:6px;padding:1px 5px;font-weight:700}
@@ -207,6 +209,7 @@ function viewNow(){
   const swaps = DATA.applied.length;
   h += swaps ? `<div class="alert sw"><b>${swaps === 1 ? "החלפה אחת" : swaps + " החלפות"} השבוע</b> מהקבוצה, כבר בטבלה (בכתום).<ul>${DATA.applied.map(a=>`<li>${esc(a)}</li>`).join("")}</ul></div>`
              : `<span class="pill ok">✓ אין החלפות השבוע</span>`;
+  if ((DATA.liveChanges || []).length) h += `<div class="alert lv"><b>שינויים מהדיווח בשטח</b> (מסומנים בירוק)<ul>${DATA.liveChanges.map(c=>`<li>${esc(c)}</li>`).join("")}</ul></div>`;
   if (DATA.flags.length) h += `<div class="alert bad"><b>לבדיקה מול ראש הצוות</b> (לא עודכן בטבלה)<ul>${DATA.flags.map(f=>`<li>${esc(f)}</li>`).join("")}</ul></div>`;
 
   const on = posts.map(p => SLOTS.find(x => x.post === p.name && x.start <= now && now < x.end));
@@ -214,7 +217,8 @@ function viewNow(){
     h += `<h2>במשמרת עכשיו</h2><div class="now">` + posts.map((p,i)=>{ const x = on[i];
       return `<div class="card"><div class="post"><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}</div>
         <div class="who">${x ? `<span class="n${same(x.who,me)?" me":""}">${esc(x.who)}</span>` : "—"}</div>
-        <div class="till">${x ? SH[x.s] + " · עד " + hhmm(x.end) : ""}</div></div>`; }).join("") + `</div>`;
+        <div class="till">${x ? SH[x.s] + " · עד " + hhmm(x.end) : ""}</div>
+        ${x ? (() => { const L = (DATA.live || {})[`${x.post}|${x.day}|${x.s}`]; return L ? `<div class="ok-ck">${L.match ? "✓ דיווח" : "⇄ שונה בדיווח"} ${L.time}</div>` : `<div class="till">עוד לא דיווח</div>`; })() : ""}</div>`; }).join("") + `</div>`;
   } else {
     h += `<div class="card"><h2>${now < W0 ? "הסידור מתחיל ביום ראשון " + dm(W0) : "השבוע הזה הסתיים"}</h2><p class="hint">${now < W0 ? "הנה מי פותח:" : "מחכה לסידור החדש."}</p>
       ${now < W0 ? `<div class="now">${posts.map(p=>{ const x = SLOTS.find(y=>y.post===p.name && y.day===0 && y.s===0);
@@ -244,12 +248,12 @@ function viewWeek(){
     h += `<tr class="${r===4?"off":""}"><th>${r<4?SH[r]:"חופש"}${r<4?`<small>${["07-13","13-19","19-01","01-07"][r]}</small>`:""}</th>`;
     for (const p of posts) {
       const c = p.rows[r][2][day]; const t = nameOf(c);
-      const cls = typeof c === "string" ? "" : (c.c === "swap" ? "sw" : "nt");
+      const cls = typeof c === "string" ? "" : (c.c === "swap" ? "sw" : c.c === "live" ? "lv" : "nt");
       h += `<td class="${cls}">${t.split(", ").map(n=>`<span class="n${me && same(n,me)?" me":""}">${esc(n)}</span>`).join(", ")}${typeof c==="string"?"":`<small>${esc(c.m)}</small>`}</td>`;
     }
     h += `</tr>`;
   }
-  h += `</tbody></table></div><p class="hint">כתום = הוחלף בקבוצה · סגול = הערה בסידור · 326 ו־ש״ג מתחילות רבע שעה קודם</p>`;
+  h += `</tbody></table></div><p class="hint">כתום = הוחלף בקבוצה · ירוק = שונה לפי דיווח מהשטח · סגול = הערה בסידור · 326 ו־ש״ג מתחילות רבע שעה קודם</p>`;
   view.innerHTML = h;
   view.querySelectorAll(".days button").forEach(b => b.onclick = () => { day = +b.dataset.i; viewWeek(); });
 }
@@ -579,6 +583,14 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   let enc;
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
+  // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
+  setInterval(async () => {
+    if (document.hidden) return;
+    try { const n = await (await fetch("data.enc.json", {cache:"no-store"})).json();
+      if (n.ct !== enc.ct) { const t = lsGet("bz_tab") || ""; if (!/ask|plan/.test(t)) location.reload();
+        else if (!document.getElementById("upd")) { const b = document.createElement("button"); b.id = "upd"; b.className = "toast"; b.style.border = "0"; b.textContent = "יש עדכון בסידור · לחץ לרענון"; b.onclick = () => location.reload(); document.body.appendChild(b); } }
+    } catch(e) {}
+  }, 120000);
   const saved = lsGet("bz_code");
   if (saved) { try { BOOT(await decrypt(enc, saved)); return; } catch(e) {} }
   lock.hidden = false;
