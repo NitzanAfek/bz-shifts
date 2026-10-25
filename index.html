@@ -405,7 +405,7 @@ function viewAsk(){
 }
 
 // ---- team lead: smart roster per team ----
-const LEADS = [["אלירן","אלירן"],["זהר","זהר"],["חי","חי"],["שוקי","שלום אטד"]];   // [team label, lead as written in the roster]
+const LEADS = DATA.leads || [];   // [team label, lead as written in the roster]; kept in the encrypted data
 // A team = the people who share a post this week (2+ appearances), named after its lead.
 const TEAMS = LEADS.map(([label, lead]) => {
   const p = posts.find(p => p.rows.some(r => r[2].some(c => nameOf(c).split(", ").some(n => same(n, lead)))));
