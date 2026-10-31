@@ -243,9 +243,16 @@ function viewNow(){
 
 let wk = "cur";   // "cur" | "next"
 function viewWeek(){
-  const today = new Date(), N = DATA.next;
+  const today = new Date(), N = DATA.next, NW = addDays(W0, 7);
+  let h = `<div class="seg" role="tablist"><button type="button" role="tab" data-w="cur" aria-selected="${wk!=="next"}">השבוע · ${dm(W0)}</button><button type="button" role="tab" data-w="next" aria-selected="${wk==="next"}">שבוע הבא · ${dm(NW)}</button></div>`;
+  if (wk === "next" && !N) {
+    view.innerHTML = h + `<div class="card" style="text-align:center;align-items:center;padding:28px 16px"><h2>הסידור לשבוע הבא עוד לא פורסם</h2>
+      <p class="hint">${dm(NW)} עד ${dm(addDays(NW,6))}. הסידור מתפרסם בדרך כלל ברביעי או חמישי בקבוצת "דיון חופשי", ויופיע כאן אוטומטית.</p></div>`;
+    view.querySelectorAll("[data-w]").forEach(b => b.onclick = () => { wk = b.dataset.w; viewWeek(); });
+    return;
+  }
   const isNext = wk === "next" && N, P = isNext ? N.posts : posts, B = isNext ? new Date(N.week_start + "T00:00:00") : W0;
-  let h = N ? `<div class="seg" role="tablist"><button type="button" role="tab" data-w="cur" aria-selected="${!isNext}">השבוע · ${dm(W0)}</button><button type="button" role="tab" data-w="next" aria-selected="${!!isNext}">שבוע הבא · ${dm(new Date(N.week_start+"T00:00:00"))}</button></div>` : "";
+  if (isNext && N.posts.some(p => p.missing)) h += `<p class="hint">חלק מהעמדות עוד לא פורסמו: ${N.posts.filter(p=>p.missing).map(p=>esc(p.name)).join(", ")}.</p>`;
   if (isNext && N.note) h += `<div class="alert sw">${esc(N.note)}</div>`;
   if (!isNext && DATA.note) h += `<div class="alert sw">${esc(DATA.note)}</div>`;
   h += `<div class="days" role="tablist">${DAYN.map((d,i)=>{ const dt = addDays(B,i);
