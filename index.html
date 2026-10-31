@@ -203,14 +203,16 @@ function pickMe(){
 document.getElementById("mebtn").onclick = pickMe;
 
 // ---------- views ----------
+// Home-screen alerts live for 24 hours from the WhatsApp message behind them; the table keeps its markings.
+const fresh = t => { const ts = (DATA.alertTs || {})[t]; return !!ts && Date.now()/1000 - ts < 86400; };
 function viewNow(){
   const now = new Date();
   let h = "";
-  const swaps = DATA.applied.length;
-  h += swaps ? `<div class="alert sw"><b>${swaps === 1 ? "החלפה אחת" : swaps + " החלפות"} השבוע</b> מהקבוצה, כבר בטבלה (בכתום).<ul>${DATA.applied.map(a=>`<li>${esc(a)}</li>`).join("")}</ul></div>`
-             : `<span class="pill ok">✓ אין החלפות השבוע</span>`;
-  if ((DATA.liveChanges || []).length) h += `<div class="alert lv"><b>שינויים מהדיווח בשטח</b> (מסומנים בירוק)<ul>${DATA.liveChanges.map(c=>`<li>${esc(c)}</li>`).join("")}</ul></div>`;
-  if (DATA.flags.length) h += `<div class="alert bad"><b>לבדיקה מול ראש הצוות</b> (לא עודכן בטבלה)<ul>${DATA.flags.map(f=>`<li>${esc(f)}</li>`).join("")}</ul></div>`;
+  const recent = DATA.applied.filter(fresh), liveNew = (DATA.liveChanges || []).filter(fresh), flagsNew = DATA.flags.filter(fresh);
+  if (recent.length) h += `<div class="alert sw"><b>${recent.length === 1 ? "החלפה חדשה" : recent.length + " החלפות חדשות"}</b> מהקבוצה, כבר בטבלה (בכתום).<ul>${recent.map(a=>`<li>${esc(a)}</li>`).join("")}</ul></div>`;
+  if (liveNew.length) h += `<div class="alert lv"><b>שינויים מהדיווח בשטח</b> (מסומנים בירוק)<ul>${liveNew.map(c=>`<li>${esc(c)}</li>`).join("")}</ul></div>`;
+  if (!recent.length && !liveNew.length && !flagsNew.length) h += `<span class="pill ok">✓ אין עדכונים חדשים ב־24 השעות האחרונות</span>`;
+  if (flagsNew.length) h += `<div class="alert bad"><b>לבדיקה מול ראש הצוות</b> (לא עודכן בטבלה)<ul>${flagsNew.map(f=>`<li>${esc(f)}</li>`).join("")}</ul></div>`;
 
   const on = posts.map(p => SLOTS.find(x => x.post === p.name && x.start <= now && now < x.end));
   if (on.some(Boolean)) {
