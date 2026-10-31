@@ -163,9 +163,9 @@ const hoursTxt = (post, day, s) => { const t = slotTime(post, day, s); return hh
 const SLOTS = [];
 posts.forEach(p => p.rows.slice(0,4).forEach((row, s) => row[2].forEach((c, day) => {
   const t = slotTime(p.name, day, s);
-  SLOTS.push({post:p.name, color:p.color, day, s, who:nameOf(c), cell:c, ...t});
+  if (nameOf(c) !== "—") SLOTS.push({post:p.name, color:p.color, day, s, who:nameOf(c), cell:c, ...t});
 })));
-const PEOPLE = [...new Set(posts.flatMap(p => p.rows.flatMap(r => r[2].flatMap(c => nameOf(c).split(", ")))))].sort((a,b)=>a.localeCompare(b,"he"));
+const PEOPLE = [...new Set(posts.flatMap(p => p.rows.flatMap(r => r[2].flatMap(c => nameOf(c).split(", ")))))].filter(n => n && n !== "—").sort((a,b)=>a.localeCompare(b,"he"));
 const postOf = name => { for (const p of posts) if (p.rows.some(r => r[2].some(c => nameOf(c).split(", ").some(n => same(n,name))))) return p.name; return ""; };
 const isWeekend = (day, s) => day >= 5 || (day === 4 && s >= 2);
 const myShifts = me => SLOTS.filter(x => same(x.who, me)).sort((a,b)=>a.start-b.start);
@@ -218,20 +218,21 @@ function viewNow(){
   if (on.some(Boolean)) {
     h += `<h2>במשמרת עכשיו</h2><div class="now">` + posts.map((p,i)=>{ const x = on[i];
       return `<div class="card"><div class="post"><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}</div>
-        <div class="who">${x ? `<span class="n${same(x.who,me)?" me":""}">${esc(x.who)}</span>` : "—"}</div>
+        <div class="who">${x ? `<span class="n${same(x.who,me)?" me":""}">${esc(x.who)}</span>` : (p.missing ? `<span style="font-size:14px;color:var(--faint);font-weight:400">סידור לא פורסם</span>` : "—")}</div>
         <div class="till">${x ? SH[x.s] + " · עד " + hhmm(x.end) : ""}</div>
         ${x ? (() => { const L = (DATA.live || {})[`${x.post}|${x.day}|${x.s}`]; return L ? `<div class="ok-ck">${L.match ? "✓ דיווח" : "⇄ שונה בדיווח"} ${L.time}</div>` : `<div class="till">עוד לא דיווח</div>`; })() : ""}</div>`; }).join("") + `</div>`;
   } else {
-    h += `<div class="card"><h2>${now < W0 ? "הסידור מתחיל ביום ראשון " + dm(W0) : "השבוע הזה הסתיים"}</h2><p class="hint">${now < W0 ? "הנה מי פותח:" : "מחכה לסידור החדש."}</p>
-      ${now < W0 ? `<div class="now">${posts.map(p=>{ const x = SLOTS.find(y=>y.post===p.name && y.day===0 && y.s===0);
-        return `<div class="card"><div class="post"><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}</div><div class="who">${esc(x.who)}</div><div class="till">מ־${hhmm(x.start)}</div></div>`; }).join("")}</div>` : ""}</div>`;
+    const before = SLOTS.length && now < Math.min(...SLOTS.map(x => x.start));
+    h += `<div class="card"><h2>${before ? "הסידור מתחיל ביום ראשון " + dm(W0) : "השבוע הזה הסתיים"}</h2><p class="hint">${before ? "הנה מי פותח:" : "מחכה לסידור החדש."}</p>
+      ${before ? `<div class="now">${posts.map(p=>{ const x = SLOTS.find(y=>y.post===p.name && y.day===0 && y.s===0);
+        return `<div class="card"><div class="post"><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}</div><div class="who">${x ? esc(x.who) : `<span style="font-size:14px;color:var(--faint);font-weight:400">סידור לא פורסם</span>`}</div><div class="till">${x ? "מ־" + hhmm(x.start) : ""}</div></div>`; }).join("")}</div>` : ""}</div>`;
   }
 
   if (me) {
     const next = myShifts(me).find(x => x.end > now);
     if (next) {
       const hrs = Math.max(0, (next.start - now) / 36e5);
-      const when = next.start <= now ? "עכשיו במשמרת" : hrs < 24 ? `בעוד ${Math.floor(hrs)} ש׳ ${Math.round((hrs%1)*60)} ד׳` : `בעוד ${Math.round(hrs/24)} ימים`;
+      const when = next.start <= now ? "עכשיו במשמרת" : hrs < 24 ? `בעוד ${Math.floor(hrs)} ש׳ ${Math.round((hrs%1)*60)} ד׳` : (d => d === 1 ? "בעוד יום" : d === 2 ? "בעוד יומיים" : `בעוד ${d} ימים`)(Math.round(hrs/24));
       h += `<div class="card"><h3>המשמרת הבאה שלך</h3><div class="big">${DAYN[next.day]} ${dm(addDays(W0,next.day))} · ${SH[next.s]}</div>
         <div class="hint"><i class="dot" style="background:var(${next.color})"></i> עמדה ${esc(next.post)} · ${hhmm(next.start)}-${hhmm(next.end)} · <b>${when}</b></div></div>`;
     } else h += `<div class="card"><h3>המשמרת הבאה שלך</h3><p class="hint">אין לך עוד משמרות השבוע.</p></div>`;
@@ -240,15 +241,21 @@ function viewNow(){
   const sm = document.getElementById("setme"); if (sm) sm.onclick = pickMe;
 }
 
+let wk = "cur";   // "cur" | "next"
 function viewWeek(){
-  const today = new Date();
-  let h = `<div class="days" role="tablist">${DAYN.map((d,i)=>{ const dt = addDays(W0,i);
+  const today = new Date(), N = DATA.next;
+  const isNext = wk === "next" && N, P = isNext ? N.posts : posts, B = isNext ? new Date(N.week_start + "T00:00:00") : W0;
+  let h = N ? `<div class="seg" role="tablist"><button type="button" role="tab" data-w="cur" aria-selected="${!isNext}">השבוע · ${dm(W0)}</button><button type="button" role="tab" data-w="next" aria-selected="${!!isNext}">שבוע הבא · ${dm(new Date(N.week_start+"T00:00:00"))}</button></div>` : "";
+  if (isNext && N.note) h += `<div class="alert sw">${esc(N.note)}</div>`;
+  if (!isNext && DATA.note) h += `<div class="alert sw">${esc(DATA.note)}</div>`;
+  h += `<div class="days" role="tablist">${DAYN.map((d,i)=>{ const dt = addDays(B,i);
     const isT = today >= dt && today < addDays(dt,1);
     return `<button type="button" role="tab" class="${isT?"today":""}" aria-selected="${i===day}" data-i="${i}">${d}<span>${isT?"היום":dm(dt)}</span></button>`; }).join("")}</div>`;
-  h += `<div class="card flush"><table><thead><tr><th style="width:64px"></th>${posts.map(p=>`<th><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}</th>`).join("")}</tr></thead><tbody>`;
+  h += `<div class="card flush"><table><thead><tr><th style="width:64px"></th>${P.map(p=>`<th><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}${p.missing?`<small style="display:block;font-weight:400;color:var(--faint);font-size:11px">לא פורסם</small>`:""}</th>`).join("")}</tr></thead><tbody>`;
   for (let r = 0; r < 5; r++) {
     h += `<tr class="${r===4?"off":""}"><th>${r<4?SH[r]:"חופש"}${r<4?`<small>${["07-13","13-19","19-01","01-07"][r]}</small>`:""}</th>`;
-    for (const p of posts) {
+    for (const p of P) {
+      if (p.missing) { h += `<td style="color:var(--faint)">—</td>`; continue; }
       const c = p.rows[r][2][day]; const t = nameOf(c);
       const cls = typeof c === "string" ? "" : (c.c === "swap" ? "sw" : c.c === "live" ? "lv" : "nt");
       h += `<td class="${cls}">${t.split(", ").map(n=>`<span class="n${me && same(n,me)?" me":""}">${esc(n)}</span>`).join(", ")}${typeof c==="string"?"":`<small>${esc(c.m)}</small>`}</td>`;
@@ -258,6 +265,7 @@ function viewWeek(){
   h += `</tbody></table></div><p class="hint">כתום = הוחלף בקבוצה · ירוק = שונה לפי דיווח מהשטח · סגול = הערה בסידור · 326 ו־ש״ג מתחילות רבע שעה קודם</p>`;
   view.innerHTML = h;
   view.querySelectorAll(".days button").forEach(b => b.onclick = () => { day = +b.dataset.i; viewWeek(); });
+  view.querySelectorAll("[data-w]").forEach(b => b.onclick = () => { wk = b.dataset.w; viewWeek(); });
 }
 
 function restWarnings(list){
