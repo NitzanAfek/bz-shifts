@@ -137,7 +137,8 @@ document.getElementById("app").hidden = false;
 // ---------- model ----------
 const SH = ["בוקר","צהריים","ערב","לילה"];
 const DAYN = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
-const EARLY = {"326":true,"ש״ג":true};               // these posts start 15 min earlier
+// a post starts 15 min early when its roster says so (06:45 instead of 07:00); hours come from each week's roster
+const EARLY = Object.fromEntries(DATA.posts.map(p => [p.name, /^06:45/.test(p.rows[0][1] || "")]));
 const START = [7,13,19,25];
 const pad = n => String(n).padStart(2,"0");
 const W0 = new Date(DATA.week_start + "T00:00:00");
@@ -269,7 +270,7 @@ function viewWeek(){
     }
     h += `</tr>`;
   }
-  h += `</tbody></table></div><p class="hint">כתום = הוחלף בקבוצה · ירוק = שונה לפי דיווח מהשטח · סגול = הערה בסידור · 326 ו־ש״ג מתחילות רבע שעה קודם</p>`;
+  h += `</tbody></table></div><p class="hint">כתום = הוחלף בקבוצה · ירוק = שונה לפי דיווח מהשטח · סגול = הערה בסידור · חלק מהעמדות מתחילות רבע שעה קודם (לפי הסידור)</p>`;
   view.innerHTML = h;
   view.querySelectorAll(".days button").forEach(b => b.onclick = () => { day = +b.dataset.i; viewWeek(); });
   view.querySelectorAll("[data-w]").forEach(b => b.onclick = () => { wk = b.dataset.w; viewWeek(); });
