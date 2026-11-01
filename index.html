@@ -144,7 +144,9 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 <h1>בונקר צנובר</h1><p class="hint" id="lockmsg">הקלידו את קוד הכניסה שקיבלתם מראש הצוות</p>
 <form id="lockform" style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:260px">
 <input id="lockcode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="••••••" style="text-align:center;font-size:22px;letter-spacing:6px">
-<button class="btn pri" type="submit" id="lockbtn">כניסה</button></form></div></div><script>
+<button class="btn pri" type="submit" id="lockbtn">כניסה</button></form>
+<details style="font-size:14px;color:var(--muted);max-width:280px"><summary style="cursor:pointer;font-weight:600">שכחת את הקוד? 🤔</summary>
+<p style="margin:8px 0 0;line-height:1.6">רמז: מספר העמדה עם המגדל 🗼<br>ואז מספר העמדה שאין בה קליטה 📵 🙂</p></details></div></div><script>
 function BOOT(DATA){
 document.getElementById("app").hidden = false;
 
