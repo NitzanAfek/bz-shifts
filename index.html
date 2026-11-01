@@ -327,6 +327,14 @@ function swapText(){
   } else t += `תאריך משמרת חלופית: אין\n`;
   return t + `אישור השומר המחליף👍`;
 }
+// Why a hand-picked replacement may not fit this shift ("" = fine)
+function clashOf(n, x, given){   // given: the replacement's shift that comes back to me, so it no longer counts
+  const mine = myShifts(n).filter(y => y !== given);
+  if (mine.some(y => y.day === x.day)) return `${n} כבר עובד ב${DAYN[x.day]}. אפשר להחליף איתו את המשמרת הזאת שלו בשלב 3`;
+  const gaps = mine.map(y => y.end <= x.start ? (x.start - y.end)/36e5 : y.start >= x.end ? (y.start - x.end)/36e5 : 0);
+  const rest = Math.min(...gaps, 99);
+  return rest < 8 ? `ל${n} יהיו רק ${Math.round(rest)} שעות מנוחה` : "";
+}
 // Who could take this shift, and why each one fits
 function candidates(x){
   const avg = PEOPLE.reduce((a,n)=>a+myShifts(n).length,0) / PEOPLE.length;
@@ -374,14 +382,19 @@ function viewAsk(){
     h += `</div>`;
     if (swapPick) {
       const cand = candidates(swapPick);
-      h += `<div class="card"><h3>2. מי יכול להחליף אותך?</h3><p class="hint">רק מי שלא עובד באותו יום ויש לו לפחות 8 שעות מנוחה. הכי מתאימים למעלה.</p>`;
+      const others = PEOPLE.filter(n => !same(n, me));
+      const warn = swapWith ? clashOf(swapWith, swapPick, swapBack) : "";
+      h += `<div class="card"><h3>2. מי מחליף אותך?</h3>
+        <label class="f">כבר יש לך מחליף? בחר אותו מהרשימה<select id="pickwith"><option value="">בחר שומר…</option>${others.map(n=>`<option${n===swapWith?" selected":""}>${esc(n)}</option>`).join("")}</select></label>
+        ${warn ? `<div class="alert bad">⚠ ${esc(warn)}.</div>` : ""}
+        <p class="hint">או בחר מההצעות: רק מי שלא עובד באותו יום ויש לו לפחות 8 שעות מנוחה. הכי מתאימים למעלה.</p>`;
       h += cand.length ? cand.slice(0,8).map(c=>`<button type="button" class="opt" data-with="${esc(c.n)}" aria-pressed="${c.n===swapWith}"><div class="s"><b>${esc(c.n)}</b> <small style="color:var(--muted)">${esc(c.post)}</small><span>${c.why.map(esc).join(" · ")}</span></div></button>`).join("")
         : `<p class="empty">אין מישהו פנוי למשמרת הזאת. נסה לשאול בקבוצה.</p>`;
       h += `</div>`;
     }
     if (swapPick && swapWith) {
       const back = myShifts(swapWith);
-      h += `<div class="card"><h3>3. לוקח ממנו משמרת בתמורה? (לא חובה)</h3>
+      h += `<div class="card"><h3>3. איזו משמרת של ${esc(first(swapWith))} אתה לוקח בתמורה? (לא חובה)</h3>${back.length ? "" : `<p class="hint">אין ל${esc(first(swapWith))} משמרות השבוע.</p>`}
         <button type="button" class="opt" data-back="-1" aria-pressed="${!swapBack}"><div class="s"><b>לא, רק החלפה</b></div></button>
         ${back.map((x,i)=>`<button type="button" class="opt" data-back="${i}" aria-pressed="${swapBack===x}"><i class="dot" style="background:var(${x.color})"></i><div class="s"><b>${dayTxt(x)} · ${SH[x.s]}</b><span>עמדה ${esc(x.post)}</span></div></button>`).join("")}</div>`;
       const p = personalText();
@@ -399,6 +412,7 @@ function viewAsk(){
     view.innerHTML = h;
     view.querySelectorAll("[data-pick]").forEach(b => b.onclick = () => { swapPick = mine[+b.dataset.pick]; swapWith = ""; swapBack = null; swapOk = false; viewAsk(); });
     view.querySelectorAll("[data-with]").forEach(b => b.onclick = () => { swapWith = b.dataset.with; swapBack = null; swapOk = false; viewAsk(); });
+    const pw = document.getElementById("pickwith"); if (pw) pw.onchange = () => { swapWith = pw.value; swapBack = null; swapOk = false; viewAsk(); };
     view.querySelectorAll("[data-back]").forEach(b => b.onclick = () => { const i = +b.dataset.back; swapBack = i < 0 ? null : myShifts(swapWith)[i]; swapOk = false; viewAsk(); });
     const ok = document.getElementById("okbtn"); if (ok) ok.onclick = () => { swapOk = !swapOk; viewAsk(); };
     const cpp = document.getElementById("cpp"); if (cpp) cpp.onclick = () => copy(personalText());
