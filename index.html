@@ -105,6 +105,21 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 @media (max-width:420px){.now{grid-template-columns:1fr 1fr}.now .who{font-size:18px}th,td{font-size:14px}}
 @media (prefers-reduced-motion:no-preference){.view{animation:fade .15s ease}}
 @keyframes fade{from{opacity:.6}to{opacity:1}}
+.bot{position:fixed;inset:0;background:rgba(10,14,22,.5);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.bot .panel{width:100%;max-width:520px;max-height:88vh;overflow:auto;background:var(--bg);border-radius:20px 20px 0 0;padding:14px 14px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px}
+.bot .hdr{display:flex;align-items:center;gap:10px;font-weight:700}
+.bot .hdr img{width:36px;height:36px;border-radius:10px}
+.bot .x{margin-inline-start:auto;font:inherit;font-size:22px;border:0;background:none;color:var(--muted);cursor:pointer}
+.bmsg{background:var(--card);border:1px solid var(--line);border-radius:16px 16px 16px 4px;padding:10px 14px;max-width:92%;font-size:16px;line-height:1.55}
+.bmsg.me{align-self:flex-end;background:var(--acc);color:var(--card);border-color:var(--acc);border-radius:16px 16px 4px 16px}
+.bmsg .k{display:inline-block;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:0 8px;font-weight:700}
+.bchoices{display:flex;flex-wrap:wrap;gap:8px}
+.bchoices button{font:inherit;font-weight:700;font-size:15px;border:1px solid var(--acc);background:var(--card);color:var(--acc);border-radius:999px;padding:9px 16px;cursor:pointer}
+.bchoices button.go{background:var(--acc);color:var(--card)}
+.ptr{font-size:34px;text-align:center;animation:bob 1s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(8px)}}
+.installbar{display:flex;align-items:center;gap:10px;background:var(--accbg);border:1px solid var(--acc);border-radius:12px;padding:10px 14px;font-weight:700;color:var(--acc);cursor:pointer;font:inherit;width:100%;text-align:start}
+
 </style>
 
 <div class="wrap">
@@ -584,6 +599,77 @@ function viewPlan(){
     plan = {team: T2.label, picked: T2.members.slice(), extra: [], paste: plan.paste, rest: plan.rest, out: null}; store.set("plan2", plan); viewPlan(); });
 }
 
+// ---------- install bot: walks a guard through putting the app on the home screen ----------
+const UA = navigator.userAgent || "";
+const ENV = {
+  standalone: matchMedia("(display-mode: standalone)").matches || navigator.standalone === true,
+  ios: /iPhone|iPad|iPod/.test(UA) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1),
+  android: /Android/.test(UA),
+  inApp: /WhatsApp|FBAN|FBAV|Instagram|Line\//.test(UA),
+  iosOther: /CriOS|FxiOS|EdgiOS/.test(UA),
+  web: /^https?:$/.test(location.protocol)
+};
+function installBot(){
+  if (document.getElementById("bot")) return;
+  const el = document.createElement("div"); el.className = "bot"; el.id = "bot";
+  el.innerHTML = `<div class="panel" role="dialog" aria-label="בוט ההתקנה"><div class="hdr"><img src="icon-192.png" alt="">בוט ההתקנה<button class="x" type="button" aria-label="סגירה">✕</button></div><div id="bchat" style="display:flex;flex-direction:column;gap:10px"></div></div>`;
+  document.body.appendChild(el);
+  const chat = el.querySelector("#bchat");
+  el.querySelector(".x").onclick = () => el.remove();
+  el.onclick = e => { if (e.target === el) el.remove(); };
+  const say = (html, me) => { const m = document.createElement("div"); m.className = "bmsg" + (me ? " me" : ""); m.innerHTML = html; chat.appendChild(m); m.scrollIntoView({block:"end", behavior:"smooth"}); };
+  const ask = choices => { const c = document.createElement("div"); c.className = "bchoices";
+    choices.forEach(([label, fn, go]) => { const b = document.createElement("button"); b.type = "button"; b.textContent = label; if (go) b.className = "go";
+      b.onclick = () => { c.remove(); say(esc(label), true); setTimeout(fn, 250); }; c.appendChild(b); }); chat.appendChild(c); c.scrollIntoView({block:"end"}); };
+  const done = () => { say("מעולה! 🎉 מעכשיו מוצאים את <b>בונקר</b> על מסך הבית, ופותחים כמו כל אפליקציה. הכל מתעדכן לבד מקבוצות הוואטסאפ."); ask([["סגור", () => el.remove(), true]]); };
+  const stuck = () => { say("אין בעיה. אפשר גם לשלוח לניצן צילום מסך ונסדר ביחד 🙂"); ask([["נסה שוב מההתחלה", start], ["סגור", () => el.remove()]]); };
+  const iosSteps = () => {
+    say(`1️⃣ לחץ על כפתור <span class="k">שיתוף ⬆</span> בתחתית המסך (באייפד: למעלה).`);
+    say(`<div class="ptr">⬇</div>`);
+    ask([["מצאתי ✓", () => { say(`2️⃣ גלול קצת למטה ובחר <span class="k">הוספה למסך הבית ⊞</span>`);
+      ask([["בחרתי ✓", () => { say(`3️⃣ לחץ <span class="k">הוספה</span> למעלה בצד ימין.`); ask([["הוספתי ✓", done, true], ["לא מוצא", stuck]]); }, true], ["לא מוצא", stuck]]); }, true], ["לא מוצא", stuck]]);
+  };
+  const androidSteps = () => {
+    if (window.__bip) {
+      say("בטלפון שלך אפשר להתקין בלחיצה אחת 👇");
+      ask([["📲 התקן עכשיו", async () => { try { window.__bip.prompt(); const r = await window.__bip.userChoice; window.__bip = null;
+        if (r.outcome === "accepted") done(); else { say("ההתקנה בוטלה. רוצה לנסות שוב?"); ask([["כן", androidSteps, true], ["סגור", () => el.remove()]]); } } catch(e) { manualAndroid(); } }, true]]);
+    } else manualAndroid();
+  };
+  const manualAndroid = () => {
+    say(`1️⃣ לחץ על <span class="k">⋮</span> למעלה בפינה.`);
+    ask([["לחצתי ✓", () => { say(`2️⃣ בחר <span class="k">התקנת אפליקציה</span> (או <span class="k">הוספה למסך הבית</span>), ואז <span class="k">התקנה</span>.`);
+      ask([["התקנתי ✓", done, true], ["לא מוצא", stuck]]); }, true], ["לא מוצא", stuck]]);
+  };
+  const openInBrowser = () => {
+    if (ENV.ios) say(`פתחת את הלינק מתוך וואטסאפ. כדי לשמור צריך לעבור ל־Safari:<br>לחץ על <span class="k">⋯</span> או על סמל המצפן 🧭 בתחתית, ובחר <span class="k">פתח ב־Safari</span>.`);
+    else say(`פתחת את הלינק מתוך וואטסאפ. כדי לשמור צריך לעבור ל־Chrome:<br>לחץ על <span class="k">⋮</span> למעלה ובחר <span class="k">פתח ב־Chrome</span>.`);
+    say("שם תצטרך להקליד את הקוד פעם אחת, ואז תפתח אותי שוב מהכפתור הכחול 📲");
+    ask([["עברתי לדפדפן ✓", () => { say("מעולה, אז משם ממשיכים 👍"); ask([["סגור", () => el.remove(), true]]); }, true], ["לא מצליח", stuck]]);
+  };
+  function start(){
+    chat.innerHTML = "";
+    say("היי 👋 אני בוט ההתקנה. תוך 20 שניות האפליקציה תהיה על מסך הבית שלך, כמו כל אפליקציה.");
+    if (ENV.standalone) { say("נראה שהאפליקציה כבר מותקנת אצלך ✅ אין מה לעשות."); ask([["סגור", () => el.remove(), true]]); return; }
+    if (ENV.inApp) { openInBrowser(); return; }
+    if (ENV.ios && ENV.iosOther) { say("באייפון שומרים דרך <b>Safari</b>. העתק את הלינק ופתח אותו ב־Safari, ואז פתח אותי שוב."); ask([["סגור", () => el.remove(), true]]); return; }
+    if (ENV.ios) { say("זיהיתי אייפון 📱 3 צעדים קצרים:"); iosSteps(); return; }
+    if (ENV.android) { say("זיהיתי אנדרואיד 📱"); androidSteps(); return; }
+    say("איזה טלפון יש לך?");
+    ask([["אייפון", iosSteps, true], ["אנדרואיד", androidSteps, true]]);
+  }
+  start();
+}
+if (ENV.web && !ENV.standalone) {
+  const bar = document.createElement("button"); bar.type = "button"; bar.className = "installbar"; bar.id = "installbar";
+  bar.innerHTML = "📲 <span>שמור את האפליקציה בטלפון · בוט ההתקנה יעזור</span>";
+  bar.onclick = installBot;
+  document.querySelector(".wrap").insertBefore(bar, document.getElementById("view"));
+  // first visit, or a link ending in #install: open the bot by itself
+  let seenBot = store.get("botSeen", false);
+  if (location.hash === "#install" || !seenBot) { store.set("botSeen", true); setTimeout(installBot, 600); }
+}
+
 // ---------- shell ----------
 // scripts run: swap the pre-rendered roster for the interactive app
 document.getElementById("static").hidden = true;
@@ -611,6 +697,8 @@ const lsGet = k => { try { return localStorage.getItem(k); } catch(e) { return n
 const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
 (async function start(){
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+  // Android/Chrome one-tap install: keep the browser's install prompt for the install bot
+  window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); window.__bip = e; });
   const lock = document.getElementById("lock"), msg = document.getElementById("lockmsg");
   let enc;
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
