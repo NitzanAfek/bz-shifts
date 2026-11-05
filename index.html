@@ -135,8 +135,8 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
   <button type="button" role="tab" data-t="now"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>עכשיו</button>
   <button type="button" role="tab" data-t="week"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>סידור</button>
   <button type="button" role="tab" data-t="mine"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>שלי</button>
-  <button type="button" role="tab" data-t="ask"><svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>בקשות</button>
-  <button type="button" role="tab" data-t="plan"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/><path d="M17 15l2 2 3-4"/></svg>שיבוץ</button>
+  <button type="button" role="tab" data-t="ask"><svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>החלפה</button>
+  <button type="button" role="tab" data-t="cons"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M9 14l6 5M15 14l-6 5"/></svg>אילוצים</button>
 </nav>
 
 </div><div id="lock" class="wrap" hidden><div class="card" style="margin-top:12vh;text-align:center;align-items:center">
@@ -187,6 +187,24 @@ const PEOPLE = [...new Set(posts.flatMap(p => p.rows.flatMap(r => r[2].flatMap(c
 const postOf = name => { for (const p of posts) if (p.rows.some(r => r[2].some(c => nameOf(c).split(", ").some(n => same(n,name))))) return p.name; return ""; };
 const isWeekend = (day, s) => day >= 5 || (day === 4 && s >= 2);
 const myShifts = me => SLOTS.filter(x => same(x.who, me)).sort((a,b)=>a.start-b.start);
+SLOTS.forEach(x => x.base = W0);
+function buildSlots(P, base){
+  const early = Object.fromEntries(P.map(p => [p.name, /^06:45/.test(p.rows[0][1] || "")]));
+  const out = [];
+  P.forEach(p => { if (p.missing) return; p.rows.slice(0,4).forEach((row, s) => row[2].forEach((c, day) => {
+    const y = base.getFullYear(), m = base.getMonth(), d = base.getDate() + day;
+    const start = early[p.name] ? new Date(y, m, d, START[s] - 1, 45) : new Date(y, m, d, START[s], 0);
+    if (nameOf(c) !== "—") out.push({post:p.name, color:p.color, day, s, who:nameOf(c), cell:c, start, end:new Date(y, m, d, START[s] + 6, 0), base});
+  })); });
+  return out;
+}
+const WEEKS = {cur: {P: DATA.posts, base: W0, slots: SLOTS}};
+if (DATA.next) { const NB = new Date(DATA.next.week_start + "T00:00:00"); WEEKS.next = {P: DATA.next.posts, base: NB, slots: buildSlots(DATA.next.posts, NB)}; }
+let swapWeek = "cur";
+const WK_ = () => WEEKS[swapWeek] || WEEKS.cur;
+const shiftsW = n => WK_().slots.filter(x => same(x.who, n)).sort((a,b) => a.start - b.start);
+const peopleW = () => [...new Set(WK_().P.flatMap(p => p.rows.flatMap(r => r[2].flatMap(c => nameOf(c).split(", ")))))].filter(n => n && n !== "—").sort((a,b) => a.localeCompare(b,"he"));
+const postOfW = name => { for (const p of WK_().P) if (!p.missing && p.rows.slice(0,4).some(r => r[2].some(c => nameOf(c).split(", ").some(n => same(n, name))))) return p.name; return ""; };
 
 // ---------- state ----------
 const store = { get(k,d){ try { const v = localStorage.getItem("bz_"+k); return v === null ? d : JSON.parse(v); } catch(e){ return d; } },
@@ -328,25 +346,26 @@ function viewMine(){
 // Swap is two steps: a personal message to the replacement first; the group form only after he agrees.
 let swapPick = null, swapWith = "", swapBack = null, swapOk = false;
 const first = n => n.split(" ")[0];
-const dayTxt = x => `${DAYN[x.day]} ${dm(addDays(W0, x.day))}`;
+const dayTxt = x => `${DAYN[x.day]} ${dm(addDays(x.base || W0, x.day))}`;
+const hrs = x => `${hhmm(x.start)}-${hhmm(x.end)}`;
 function personalText(){
   const x = swapPick;
-  let t = `היי אחי, מה שלומך? 🙂\nבודק איתך אופציה להחליף אותי במשמרת ${SH[x.s]} ביום ${dayTxt(x)} (${hoursTxt(x.post,x.day,x.s)}) בעמדה ${x.post}.`;
+  let t = `היי אחי, מה שלומך? 🙂\nבודק איתך אופציה להחליף אותי במשמרת ${SH[x.s]} ביום ${dayTxt(x)} (${hrs(x)}) בעמדה ${x.post}.`;
   if (swapBack) t += `\nבתמורה אני יכול לקחת ממך את ה${SH[swapBack.s]} ביום ${dayTxt(swapBack)}.`;
   return t + `\nמתאים לך?`;
 }
 function swapText(){
   const x = swapPick; if (!x || !swapWith) return "";
-  const d = addDays(W0, x.day);
-  let t = `*פורמט החלפת משמרת*\nשם השומר המבקש: ${me}\n • תאריך המשמרת המקורית: ${d.getDate()}/${d.getMonth()+1}\n • שעת המשמרת: ${hoursTxt(x.post,x.day,x.s)}\n • סוג המשמרת : ${SH[x.s]}\n • שם השומר המחליף : ${swapWith}\n  • עמדה: ${x.post}\n`;
-  if (swapBack) { const b = swapBack, bd = addDays(W0, b.day);
-    t += `תאריך משמרת חלופית: ${bd.getDate()}/${bd.getMonth()+1}\nמשמרת ${SH[b.s]} : ${hoursTxt(b.post,b.day,b.s)}\nשם השומר: ${me}\nעמדה: ${b.post}\n`;
+  const d = addDays(x.base || W0, x.day);
+  let t = `*פורמט החלפת משמרת*\nשם השומר המבקש: ${me}\n • תאריך המשמרת המקורית: ${d.getDate()}/${d.getMonth()+1}\n • שעת המשמרת: ${hrs(x)}\n • סוג המשמרת : ${SH[x.s]}\n • שם השומר המחליף : ${swapWith}\n  • עמדה: ${x.post}\n`;
+  if (swapBack) { const b = swapBack, bd = addDays(b.base || W0, b.day);
+    t += `תאריך משמרת חלופית: ${bd.getDate()}/${bd.getMonth()+1}\nמשמרת ${SH[b.s]} : ${hrs(b)}\nשם השומר: ${me}\nעמדה: ${b.post}\n`;
   } else t += `תאריך משמרת חלופית: אין\n`;
   return t + `אישור השומר המחליף👍`;
 }
 // Why a hand-picked replacement may not fit this shift ("" = fine)
 function clashOf(n, x, given){   // given: the replacement's shift that comes back to me, so it no longer counts
-  const mine = myShifts(n).filter(y => y !== given);
+  const mine = shiftsW(n).filter(y => y !== given);
   if (mine.some(y => y.day === x.day)) return `${n} כבר עובד ב${DAYN[x.day]}. אפשר להחליף איתו את המשמרת הזאת שלו בשלב 3`;
   const gaps = mine.map(y => y.end <= x.start ? (x.start - y.end)/36e5 : y.start >= x.end ? (y.start - x.end)/36e5 : 0);
   const rest = Math.min(...gaps, 99);
@@ -354,21 +373,22 @@ function clashOf(n, x, given){   // given: the replacement's shift that comes ba
 }
 // Who could take this shift, and why each one fits
 function candidates(x){
-  const avg = PEOPLE.reduce((a,n)=>a+myShifts(n).length,0) / PEOPLE.length;
-  return PEOPLE.filter(n => !same(n, me)).map(n => {
-    const mine = myShifts(n);
+  const PP = peopleW();
+  const avg = PP.reduce((a,n)=>a+shiftsW(n).length,0) / PP.length;
+  return PP.filter(n => !same(n, me)).map(n => {
+    const mine = shiftsW(n);
     if (mine.some(y => y.day === x.day)) return null;                 // already works that day
     const gapBefore = Math.min(...mine.filter(y => y.end <= x.start).map(y => (x.start - y.end)/36e5), 99);
     const gapAfter  = Math.min(...mine.filter(y => y.start >= x.end).map(y => (y.start - x.end)/36e5), 99);
     const rest = Math.min(gapBefore, gapAfter);
     if (rest < 8) return null;                                         // would break minimum rest
-    const why = [], postN = postOf(n);
+    const why = [], postN = postOfW(n);
     let score = 0;
-    const offRow = posts.find(p => p.name === postN)?.rows[4][2][x.day];
+    const offRow = WK_().P.find(p => p.name === postN)?.rows[4][2][x.day];
     if (offRow && nameOf(offRow).split(", ").some(o => same(o, n))) { why.push("ביום חופש באותו יום"); score += 3; }
     if (postN === x.post) { why.push("מכיר את העמדה"); score += 3; }
-    if (mine.length < avg - 0.4) { why.push(`רק ${mine.length} משמרות השבוע`); score += 2; }
-    if (x.s === 3) { const nt = mine.filter(y=>y.s===3).length; if (nt === 0) { why.push("אין לו לילות השבוע"); score += 2; } }
+    if (mine.length < avg - 0.4) { why.push(`רק ${mine.length} משמרות באותו שבוע`); score += 2; }
+    if (x.s === 3) { const nt = mine.filter(y=>y.s===3).length; if (nt === 0) { why.push("אין לו לילות באותו שבוע"); score += 2; } }
     if (rest >= 24) { why.push("לא צמוד למשמרת אחרת שלו"); score += 1; }
     else why.push(`${Math.round(rest)} ש׳ מנוחה מהמשמרת הקרובה שלו`);
     const cov = (DATA.cover || {})[n] || 0;
@@ -378,7 +398,7 @@ function candidates(x){
 }
 let cons = store.get("cons", {});   // {"d-s": true}
 let consNote = store.get("consNote", "");
-const NW0 = addDays(W0, 7);
+const NW0 = addDays(W0, DATA.next ? 14 : 7);   // constraints go to the first week without a roster yet
 function consText(){
   const lines = [];
   for (let d = 0; d < 7; d++) {
@@ -388,18 +408,23 @@ function consText(){
   }
   return `*פורמט אילוצים*\nשם: ${me}\nשבוע: ${dm(NW0)}-${dm(addDays(NW0,6))}\n` + (lines.length ? lines.join("\n") : " • אין אילוצים, זמין לכל משמרת") + (consNote.trim() ? `\nהערה: ${consNote.trim()}` : "");
 }
-function viewAsk(){
-  if (!me) { view.innerHTML = `<div class="card"><h2>בקשות</h2><p class="hint">קודם בחר את השם שלך.</p><button type="button" class="btn pri" id="setme">בחירת שם</button></div>`; document.getElementById("setme").onclick = pickMe; return; }
-  let h = `<div class="seg" role="tablist"><button type="button" role="tab" data-m="swap" aria-selected="${askMode==="swap"}">בקשת החלפה</button><button type="button" role="tab" data-m="cons" aria-selected="${askMode==="cons"}">אילוצים לשבוע הבא</button></div>`;
-  if (askMode === "swap") {
-    const mine = myShifts(me).filter(x => x.end > new Date());
+function viewSwap(){
+  if (!me) { view.innerHTML = `<div class="card"><h2>בקשת החלפה</h2><p class="hint">קודם בחר את השם שלך.</p><button type="button" class="btn pri" id="setme">בחירת שם</button></div>`; document.getElementById("setme").onclick = pickMe; return; }
+  const NWK = WEEKS.next;
+  let h = `<div class="seg" role="tablist"><button type="button" role="tab" data-sw="cur" aria-selected="${swapWeek==="cur"}">השבוע · ${dm(W0)}</button><button type="button" role="tab" data-sw="next" aria-selected="${swapWeek==="next"}">שבוע הבא · ${dm(addDays(W0,7))}</button></div>`;
+  if (swapWeek === "next" && !NWK) {
+    view.innerHTML = h + `<div class="card" style="text-align:center;align-items:center"><h2>הסידור לשבוע הבא עוד לא פורסם</h2><p class="hint">ברגע שהוא מתפרסם בקבוצה, אפשר לבקש כאן החלפה גם לשבוע הבא.</p></div>`;
+    view.querySelectorAll("[data-sw]").forEach(b => b.onclick = () => { swapWeek = b.dataset.sw; swapPick = null; swapWith = ""; swapBack = null; swapOk = false; viewSwap(); });
+    return;
+  }
+    const mine = shiftsW(me).filter(x => x.end > new Date());
     h += `<div class="card"><h3>1. איזו משמרת להחליף?</h3>`;
     h += mine.length ? mine.map((x,i)=>`<button type="button" class="opt" data-pick="${i}" aria-pressed="${swapPick===x}"><i class="dot" style="background:var(${x.color})"></i><div class="s"><b>${dayTxt(x)} · ${SH[x.s]}</b><span>עמדה ${esc(x.post)} · ${hhmm(x.start)}-${hhmm(x.end)}</span></div></button>`).join("")
-      : `<p class="empty">אין לך משמרות פתוחות השבוע.</p>`;
+      : `<p class="empty">אין לך משמרות פתוחות ב${swapWeek==="next"?"שבוע הבא":"שבוע הזה"}.</p>`;
     h += `</div>`;
     if (swapPick) {
       const cand = candidates(swapPick);
-      const others = PEOPLE.filter(n => !same(n, me));
+      const others = peopleW().filter(n => !same(n, me));
       const warn = swapWith ? clashOf(swapWith, swapPick, swapBack) : "";
       h += `<div class="card"><h3>2. מי מחליף אותך?</h3>
         <label class="f">כבר יש לך מחליף? בחר אותו מהרשימה<select id="pickwith"><option value="">בחר שומר…</option>${others.map(n=>`<option${n===swapWith?" selected":""}>${esc(n)}</option>`).join("")}</select></label>
@@ -410,7 +435,7 @@ function viewAsk(){
       h += `</div>`;
     }
     if (swapPick && swapWith) {
-      const back = myShifts(swapWith);
+      const back = shiftsW(swapWith);
       h += `<div class="card"><h3>3. איזו משמרת של ${esc(first(swapWith))} אתה לוקח בתמורה? (לא חובה)</h3>${back.length ? "" : `<p class="hint">אין ל${esc(first(swapWith))} משמרות השבוע.</p>`}
         <button type="button" class="opt" data-back="-1" aria-pressed="${!swapBack}"><div class="s"><b>לא, רק החלפה</b></div></button>
         ${back.map((x,i)=>`<button type="button" class="opt" data-back="${i}" aria-pressed="${swapBack===x}"><i class="dot" style="background:var(${x.color})"></i><div class="s"><b>${dayTxt(x)} · ${SH[x.s]}</b><span>עמדה ${esc(x.post)}</span></div></button>`).join("")}</div>`;
@@ -427,14 +452,18 @@ function viewAsk(){
       }
     }
     view.innerHTML = h;
-    view.querySelectorAll("[data-pick]").forEach(b => b.onclick = () => { swapPick = mine[+b.dataset.pick]; swapWith = ""; swapBack = null; swapOk = false; viewAsk(); });
-    view.querySelectorAll("[data-with]").forEach(b => b.onclick = () => { swapWith = b.dataset.with; swapBack = null; swapOk = false; viewAsk(); });
-    const pw = document.getElementById("pickwith"); if (pw) pw.onchange = () => { swapWith = pw.value; swapBack = null; swapOk = false; viewAsk(); };
-    view.querySelectorAll("[data-back]").forEach(b => b.onclick = () => { const i = +b.dataset.back; swapBack = i < 0 ? null : myShifts(swapWith)[i]; swapOk = false; viewAsk(); });
-    const ok = document.getElementById("okbtn"); if (ok) ok.onclick = () => { swapOk = !swapOk; viewAsk(); };
+    view.querySelectorAll("[data-pick]").forEach(b => b.onclick = () => { swapPick = mine[+b.dataset.pick]; swapWith = ""; swapBack = null; swapOk = false; viewSwap(); });
+    view.querySelectorAll("[data-with]").forEach(b => b.onclick = () => { swapWith = b.dataset.with; swapBack = null; swapOk = false; viewSwap(); });
+    const pw = document.getElementById("pickwith"); if (pw) pw.onchange = () => { swapWith = pw.value; swapBack = null; swapOk = false; viewSwap(); };
+    view.querySelectorAll("[data-back]").forEach(b => b.onclick = () => { const i = +b.dataset.back; swapBack = i < 0 ? null : shiftsW(swapWith)[i]; swapOk = false; viewSwap(); });
+    const ok = document.getElementById("okbtn"); if (ok) ok.onclick = () => { swapOk = !swapOk; viewSwap(); };
     const cpp = document.getElementById("cpp"); if (cpp) cpp.onclick = () => copy(personalText());
     const cp = document.getElementById("cp"); if (cp) cp.onclick = () => copy(swapText());
-  } else {
+    view.querySelectorAll("[data-sw]").forEach(b => b.onclick = () => { swapWeek = b.dataset.sw; swapPick = null; swapWith = ""; swapBack = null; swapOk = false; viewSwap(); });
+}
+function viewCons(){
+  if (!me) { view.innerHTML = `<div class="card"><h2>אילוצים</h2><p class="hint">קודם בחר את השם שלך.</p><button type="button" class="btn pri" id="setme">בחירת שם</button></div>`; document.getElementById("setme").onclick = pickMe; return; }
+  let h = "";
     h += `<div class="card"><h3>מתי אתה <u>לא</u> יכול? (${dm(NW0)}-${dm(addDays(NW0,6))})</h3><p class="hint">לחץ על משבצת כדי לסמן. אדום = לא יכול.</p>
       <div class="grid7"><span></span>${SH.map(s=>`<span class="h">${s}</span>`).join("")}<span class="h">כל היום</span>`;
     for (let d = 0; d < 7; d++) {
@@ -447,14 +476,12 @@ function viewAsk(){
       <div class="actions"><a class="btn wa" id="wa" href="${waLink(t)}" target="_blank" rel="noopener">שלח בוואטסאפ</a><button type="button" class="btn sec" id="cp">העתק</button></div>
       <p class="hint">שלח לקבוצת "החלפת משמרת": משם האילוצים נכנסים לבד לשיבוץ של ראש הצוות. אם שלחת לו בפרטי, הוא ידביק אותם ידנית.</p></div>`;
     view.innerHTML = h;
-    const refresh = () => { store.set("cons", cons); viewAsk(); };
+    const refresh = () => { store.set("cons", cons); viewCons(); };
     view.querySelectorAll("[data-c]").forEach(b => b.onclick = () => { const k = b.dataset.c; if (cons[k]) delete cons[k]; else cons[k] = true; refresh(); });
     view.querySelectorAll("[data-all]").forEach(b => b.onclick = () => { const d = b.dataset.all; const all = [0,1,2,3].every(s=>cons[d+"-"+s]); [0,1,2,3].forEach(s => { if (all) delete cons[d+"-"+s]; else cons[d+"-"+s] = true; }); refresh(); });
     const cn = document.getElementById("cnote");
     cn.oninput = () => { consNote = cn.value; store.set("consNote", consNote); const t2 = consText(); view.querySelector(".preview").textContent = t2; document.getElementById("wa").href = waLink(t2); };
     document.getElementById("cp").onclick = () => copy(consText());
-  }
-  view.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { askMode = b.dataset.m; viewAsk(); });
 }
 
 // ---- team lead: smart roster per team ----
@@ -677,7 +704,7 @@ if (ENV.web && !ENV.standalone) {
 document.getElementById("static").hidden = true;
 document.getElementById("tabs").hidden = false;
 document.getElementById("mebtn").hidden = false;
-const VIEWS = {now:viewNow, week:viewWeek, mine:viewMine, ask:viewAsk, plan:viewPlan};
+const VIEWS = {now:viewNow, week:viewWeek, mine:viewMine, ask:viewSwap, cons:viewCons};   // rostering (viewPlan) is off for now
 function render(){
   document.getElementById("mebtn").textContent = me ? "אני: " + me : "מי אני?";
   document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.t === tab));
