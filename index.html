@@ -241,7 +241,8 @@ function pickMe(){
     <div class="chips">${PEOPLE.map(n=>`<button type="button" class="chip" aria-pressed="${n===me}">${esc(n)} <small>${esc(postOf(n))}</small></button>`).join("")}</div>
     <button type="button" class="btn sec" id="closeMe">סגור</button></div>`;
   document.body.appendChild(sh);
-  sh.querySelectorAll(".chip").forEach((b,i)=>b.onclick=()=>{ me = PEOPLE[i]; store.set("me", me); sh.remove(); render(); });
+  sh.querySelectorAll(".chip").forEach((b,i)=>b.onclick=()=>{ me = PEOPLE[i]; store.set("me", me); sh.remove(); render();
+    if (typeof canVerify === "function" && canVerify() && !store.get("k", "")) verifySheet(canonN(me)); });
   sh.querySelector("#closeMe").onclick = () => sh.remove();
   sh.onclick = e => { if (e.target === sh) sh.remove(); };
 }
@@ -764,7 +765,10 @@ function gridHTML(cells, ws, opts){
 function oneOffBlocks(cells, tpl){ return Object.keys(cells).filter(k => cells[k] === 3 && (tpl[k] || 0) !== 3); }
 function viewCons(){
   if (!me) { view.innerHTML = `<div class="card"><h2>אילוצים</h2><p class="hint">קודם בחר את השם שלך.</p><button type="button" class="btn pri" id="setme">בחירת שם</button></div>`; document.getElementById("setme").onclick = pickMe; return; }
-  if (!FBC || !TOKEN) return viewConsLegacy();
+  if (!FBC || !TOKEN) { viewConsLegacy();
+    if (canVerify()) { const c = document.createElement("div"); c.className = "card"; c.innerHTML = `<h3>לשמור אילוצים באפליקציה</h3><p class="hint">אימות חד פעמי בוואטסאפ, ואז האילוצים, התבנית השבועית וההתראות נשמרים אצלך.</p><button type="button" class="btn pri">אמת אותי בוואטסאפ</button>`;
+      c.querySelector("button").onclick = () => verifySheet(me); view.prepend(c); }
+    return; }
   if (gState === "idle" || gState === "loading") { view.innerHTML = `<div class="card"><p class="hint">טוען את האילוצים שלך…</p></div>`; loadGuard(); return; }
   if (gState !== "ok") { view.innerHTML = `<div class="card"><h2>אילוצים</h2><div class="alert bad">${gState === "missing" ? "הקישור האישי לא מוכר. בקש מניצן קישור חדש." : "אין חיבור לשרת כרגע. נסה שוב בעוד רגע."}</div></div>`; if (gState === "error") { gState = "idle"; } return; }
   const W = planWeeks(), G = GDOC; G.cons = G.cons || {}; G.tpl = G.tpl || {cells: {}}; G.prof = G.prof || {target: 5, maxN: 2, nightPref: 0, dbl: false};
@@ -819,6 +823,8 @@ function mineExtras(){
   if (LED.weeks.length) h += `<div class="card"><h3>ספר ההוגנות שלי · ${LED.weeks.length} שבועות, לפי מה שדווח בפועל</h3>
     <div class="stats s4"><div><b>${L.sh}</b><span>משמרות<br>צוות: ${avg("sh").toFixed(1)}</span></div><div><b>${L.nt}</b><span>לילות<br>צוות: ${avg("nt").toFixed(1)}</span></div><div><b>${L.fri}</b><span>שישי<br>צוות: ${avg("fri").toFixed(1)}</span></div><div><b>${L.sat}</b><span>שבת<br>צוות: ${avg("sat").toFixed(1)}</span></div></div>
     <p class="hint">שבת = משישי ערב עד שבת ערב. "צוות" = ממוצע הצוות הקבוע של אלירן. השבוע הנוכחי נספר עד עכשיו.</p></div>`;
+  h += pushCard();
+  if (FBC && !TOKEN && canVerify()) h += `<div class="card"><h3>חשבון אישי</h3><p class="hint">אימות חד פעמי בוואטסאפ: האילוצים והאישורים שלך יישמרו, ותקבל התראות.</p><button type="button" class="btn pri" id="vstart">אמת אותי בוואטסאפ</button></div>`;
   if (FBC && TOKEN && WEEKS.next && GDOC) {
     const k = DATA.next.week_start, ok = (GDOC.conf || {})[k];
     h += `<div class="card"><h3>המשמרות שלך לשבוע ${dm(WEEKS.next.base)}</h3>
@@ -827,6 +833,9 @@ function mineExtras(){
   return h;
 }
 function wireMine(){
+  const po = document.getElementById("pushon"); if (po) po.onclick = enablePush;
+  const pi = document.getElementById("pinst"); if (pi) pi.onclick = installBot;
+  const vs = document.getElementById("vstart"); if (vs) vs.onclick = () => verifySheet(me);
   const b = document.getElementById("confbtn");
   if (b) b.onclick = () => { GDOC.conf = GDOC.conf || {}; const k = DATA.next.week_start; if (GDOC.conf[k]) delete GDOC.conf[k]; else GDOC.conf[k] = new Date().toISOString(); saveGuard(); viewMine(); };
   view.querySelectorAll("[data-cant]").forEach(b2 => b2.onclick = () => cantSheet(myShifts(me).filter(x => x.end > new Date())[+b2.dataset.cant]));
@@ -883,6 +892,79 @@ function cantSheet(x){
   let logged = false;
   sh.querySelectorAll("a").forEach(a => a.addEventListener("click", () => { if (logged || !GDOC) return; logged = true;
     GDOC.unavail = GDOC.unavail || []; GDOC.unavail.push({w: iso(x.base || W0), d: x.day, s: x.s, post: x.post, at: new Date().toISOString()}); saveGuard(); }));
+}
+
+
+// ---- self-registration: pick your name, get a code on your own WhatsApp from the bot, type it here ----
+async function encForBot(text){
+  const key = await crypto.subtle.importKey("spki", Uint8Array.from(atob(DATA.vk), c => c.charCodeAt(0)), {name: "RSA-OAEP", hash: "SHA-256"}, false, ["encrypt"]);
+  return btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.encrypt({name: "RSA-OAEP"}, key, new TextEncoder().encode(text)))));
+}
+const canVerify = () => !!(FBC && DATA.vk);
+function verifySheet(name){
+  if (!canVerify() || document.getElementById("vsheet")) return;
+  const sh = document.createElement("div"); sh.className = "sheet"; sh.id = "vsheet"; document.body.appendChild(sh);
+  let stop = false, last = "";
+  const draw = html => { sh.innerHTML = `<div class="card"><h2>אימות בוואטסאפ · ${esc(name)}</h2>${html}<button type="button" class="btn sec" id="vclose">סגור</button></div>`;
+    sh.querySelector("#vclose").onclick = () => { stop = true; sh.remove(); }; };
+  async function begin(){
+    last = ""; draw(`<p class="hint">שולח קוד לוואטסאפ שלך…</p>`);
+    const tok = rnd(24);
+    try { await fsSet("guards/" + tok, {name, state: "pending", created: new Date().toISOString()});
+      await fsSet("reqs/" + rnd(20), {name, enc: await encForBot(tok), at: new Date().toISOString()}); }
+    catch(e) { draw(`<div class="alert bad">אין חיבור לשרת. נסה שוב בעוד רגע.</div>`); return; }
+    store.set("kp", {name, t: tok}); poll(tok);
+  }
+  function codeForm(tok, wrong){
+    draw(`<p class="hint">שלחנו קוד בן 6 ספרות לוואטסאפ שלך (מניצן). הקלד אותו כאן:</p>${wrong ? `<div class="alert bad">הקוד לא נכון. נסה שוב.</div>` : ""}
+      <form id="vform" style="display:flex;gap:8px"><input id="vcode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="text-align:center;font-size:22px;letter-spacing:6px"><button class="btn pri" style="min-width:90px;flex:none">אישור</button></form>
+      <p class="hint">לא הגיע תוך דקה? בדוק בצ'אט עם ניצן בוואטסאפ.</p>`);
+    sh.querySelector("#vcode").focus();
+    sh.querySelector("#vform").onsubmit = async ev => { ev.preventDefault(); const v = sh.querySelector("#vcode").value.trim(); if (!/^\d{6}$/.test(v)) return;
+      draw(`<p class="hint">בודק…</p>`); try { const g = await fsGet("guards/" + tok); g.code = v; g.state = "checking"; await fsSet("guards/" + tok, g); last = "checking"; } catch(e) { codeForm(tok, false); } };
+  }
+  async function poll(tok){
+    while (!stop) {
+      let g = null; try { g = await fsGet("guards/" + tok); } catch(e) {}
+      const st = (g && g.state) || "";
+      if (st !== last) { last = st;
+        if (st === "verified") { const k = g.redirect || tok; store.set("k", k); store.set("kp", null); store.set("me", name);
+          draw(`<p class="big">✓ אומת</p><p class="hint">האילוצים, האישורים וההתראות שלך נשמרים מעכשיו.</p>`); setTimeout(() => location.reload(), 1300); return; }
+        if (st === "nojid") { store.set("k", tok); draw(`<div class="alert sw">לבוט עוד אין את הוואטסאפ שלך. ניצן קיבל הודעה ויאשר אותך. אפשר כבר למלא אילוצים.</div>`); setTimeout(() => location.reload(), 2500); return; }
+        if (st === "limit") { draw(`<div class="alert bad">נשלחו יותר מדי קודים בשעה האחרונה. נסה שוב מאוחר יותר.</div>`); return; }
+        if (st === "expired" || st === "failed") { draw(`<div class="alert bad">${st === "failed" ? "3 ניסיונות שגויים." : "הקוד פג תוקף."}</div><button type="button" class="btn pri" id="vagain">שלח קוד חדש</button>`); sh.querySelector("#vagain").onclick = begin; return; }
+        if (st === "sent") codeForm(tok, false);
+        if (st === "wrong") codeForm(tok, true);
+      }
+      await new Promise(r => setTimeout(r, 3000));
+    }
+  }
+  const kp = store.get("kp", null);
+  if (kp && kp.name === name) poll(kp.t); else begin();
+}
+
+// ---- push: this phone gets notifications for this guard ----
+const urlB64 = s => { const p = "=".repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+function pushCard(){
+  if (!(TOKEN && GDOC && DATA.vapid)) return "";
+  const on = (GDOC.push || []).some(x => x.endpoint === store.get("pushEp", ""));
+  const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  let body;
+  if (on) body = `<span class="pill ok">✓ התראות פעילות בטלפון הזה</span>`;
+  else if (ENV.ios && !ENV.standalone) body = `<p class="hint">באייפון התראות עובדות רק מהאפליקציה שעל מסך הבית. קודם התקן (בוט ההתקנה), ואז הפעל מכאן.</p><button type="button" class="btn sec" id="pinst">פתח את בוט ההתקנה</button>`;
+  else if (!supported) body = `<p class="hint">הדפדפן הזה לא תומך בהתראות. פתח את האפליקציה בכרום (אנדרואיד) או מהמסך הבית (אייפון).</p>`;
+  else body = `<button type="button" class="btn pri" id="pushon">🔔 הפעל התראות</button><p class="hint">סידור חדש, החלפה שנוגעת אליך, תזכורת ערב לפני משמרת ותזכורת לאילוצים.</p>`;
+  return `<div class="card"><h3>התראות לטלפון</h3>${body}</div>`;
+}
+async function enablePush(){
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") { toast("ההתראות לא אושרו בטלפון"); return; }
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: urlB64(DATA.vapid)});
+    const j = sub.toJSON(); GDOC.push = (GDOC.push || []).filter(x => x.endpoint !== j.endpoint).concat([j]).slice(-4);
+    store.set("pushEp", j.endpoint); saveGuard(); toast("התראות הופעלו"); viewMine();
+  } catch(e) { toast("לא הצלחתי להפעיל התראות"); }
 }
 
 // ---- scheduler (Nitzan): team, draft, emergency, ledger ----
@@ -1008,12 +1090,14 @@ function viewAdmin(){
   const core = teamCore(ADOC), flo = teamFloaters(ADOC), W = planWeeks();
   if (aTab === "team") {
     const row = (n, kind) => { const g = GDOCS[n] || {}, ws = iso(W[0]);
-      const st = [g.tpl && Object.keys(g.tpl.cells || {}).length ? "✓ תבנית" : "", g.cons && g.cons[ws] && g.cons[ws].at ? "✓ אילוצים " + dm(W[0]) : "", WEEKS.next && g.conf && g.conf[DATA.next.week_start] ? "✓ אישר" : ""].filter(Boolean);
+      const st = [(g.push || []).length ? "🔔" : "", g.verified ? "✓ אומת" : "", g.tpl && Object.keys(g.tpl.cells || {}).length ? "✓ תבנית" : "", g.cons && g.cons[ws] && g.cons[ws].at ? "✓ אילוצים " + dm(W[0]) : "", WEEKS.next && g.conf && g.conf[DATA.next.week_start] ? "✓ אישר" : ""].filter(Boolean);
       const pend = g.tpl ? Object.keys(g.tpl.cells || {}).filter(k => g.tpl.cells[k] === 3 && !(g.tplOk || {})[k]) : [];
       return `<li><div class="s">${esc(n)} <small style="color:var(--muted)">${kind}</small><span>${st.length ? st.join(" · ") : (g.token ? "עוד לא מילא" : "אין קישור")}</span>
         ${pend.length ? `<span class="warn">חסימה קבועה לאישור: ${pend.map(k => DAYN[k.split("-")[0]] + " " + SH[k.split("-")[1]]).join(", ")} <button class="mebtn" data-appr="${esc(n)}">אשר</button></span>` : ""}</div>
         ${g.token ? `<a class="cal" target="_blank" rel="noopener" href="${waLink(`היי ${first(n)} 👋\nזה הקישור האישי שלך לאפליקציית הבונקר: אילוצים, התבנית השבועית שלך ואישור משמרות.\n${linkFor(g.token)}\nהקישור אישי, אל תעביר אותו.`)}">שלח</a><button class="cal" data-cpl="${esc(n)}">העתק</button>` : `<button class="cal" data-mk="${esc(n)}">צור קישור</button>`}
         <button class="cal" data-kind="${esc(n)}">${kind === "קבוע" ? "← מתגבר" : "← קבוע"}</button></li>`; };
+    const pm = Object.entries(ADOC.pendingManual || {});
+    if (pm.length) h += `<div class="card"><h3>ממתינים לאישור שלך</h3><p class="hint">ביקשו להצטרף, ולבוט אין את הוואטסאפ שלהם. אשר רק אם אתה בטוח שזה הם.</p>${pm.map(([t, n]) => `<div class="opt"><div class="s"><b>${esc(n)}</b></div><button class="cal" data-pmok="${t}">אשר</button><button class="cal" data-pmno="${t}">דחה</button></div>`).join("")}</div>`;
     h += `<div class="card flush"><ul class="list">${core.map(n => row(n, "קבוע")).join("")}${flo.map(n => row(n, "מתגבר")).join("")}</ul></div>
       <div class="card"><label class="f">הוסף שומר לרשימה<select id="addg"><option value="">בחר…</option>${DIR.people.filter(p => !p.left && !core.includes(p.n) && !flo.includes(p.n)).map(p => `<option>${esc(p.n)}</option>`).join("")}</select></label>
       <p class="hint">קבוע = 5 משמרות ו־2 ימי חופש. מתגבר = משלים את 28 המשמרות. "עוד לא מילא" אחרי שלישי 12:00 = כדאי תזכורת.</p></div>`;
@@ -1045,6 +1129,10 @@ function viewAdmin(){
   view.innerHTML = h; wireAdminTabs();
   view.querySelectorAll("[data-mk]").forEach(b => b.onclick = async () => { b.textContent = "יוצר…"; try { await makeLink(b.dataset.mk); } catch(e) { toast("לא נוצר"); } viewAdmin(); });
   view.querySelectorAll("[data-cpl]").forEach(b => b.onclick = () => copy(linkFor(GDOCS[b.dataset.cpl].token)));
+  view.querySelectorAll("[data-pmok]").forEach(b => b.onclick = async () => { const t = b.dataset.pmok, n = ADOC.pendingManual[t];
+    try { const g = await fsGet("guards/" + t) || {name: n}; g.state = "verified"; g.verified = new Date().toISOString(); await fsSet("guards/" + t, g);
+      ADOC.guards = ADOC.guards || {}; ADOC.guards[t] = n; delete ADOC.pendingManual[t]; await saveAdmin(); aState = "idle"; loadAdmin(); } catch(e) { toast("לא נשמר"); } });
+  view.querySelectorAll("[data-pmno]").forEach(b => b.onclick = async () => { delete ADOC.pendingManual[b.dataset.pmno]; await saveAdmin(); viewAdmin(); });
   view.querySelectorAll("[data-appr]").forEach(b => b.onclick = async () => { const g = GDOCS[b.dataset.appr]; g.tplOk = g.tplOk || {};
     Object.keys(g.tpl.cells).forEach(k => { if (g.tpl.cells[k] === 3) g.tplOk[k] = true; });
     const {token, ...doc} = g; try { await fsSet("guards/" + token, doc); toast("אושר"); } catch(e) { toast("לא נשמר"); } viewAdmin(); });
