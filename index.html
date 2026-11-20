@@ -118,7 +118,16 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 .bchoices button.go{background:var(--acc);color:var(--card)}
 .ptr{font-size:34px;text-align:center;animation:bob 1s ease-in-out infinite}
 @keyframes bob{50%{transform:translateY(8px)}}
-.g2{grid-template-columns:52px repeat(4,1fr)}
+.g2{grid-template-columns:74px repeat(4,1fr)}
+.g2 .dn{font-size:13px;font-weight:600}.g2 .dn b{display:block;font-size:12px;color:var(--muted);font-weight:400;font-variant-numeric:tabular-nums}
+button,a,.tg,td[data-why]{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.tg{min-height:44px;user-select:none;-webkit-user-select:none}
+.brush{display:flex;gap:6px}.brush button{flex:1;font:inherit;font-size:14px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:10px;padding:10px 4px;cursor:pointer}
+.brush button[aria-checked="true"].st3{background:var(--badbg);border-color:var(--bad);color:var(--bad)}
+.brush button[aria-checked="true"].st2{background:var(--swapbg);border-color:var(--swap);color:var(--swap)}
+.brush button[aria-checked="true"].st1{background:var(--goodbg);border-color:var(--good);color:var(--good)}
+details.wnote{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px}details.wnote summary{cursor:pointer;color:var(--muted);font-weight:600}details.wnote p{margin:6px 0 0}
+td[data-why]{cursor:pointer}
 .tg.st1{background:var(--goodbg);border-color:var(--good);color:var(--good);font-weight:700}
 .tg.st2{background:var(--swapbg);border-color:var(--swap);color:var(--swap);font-weight:700}
 .tg.st3{background:var(--badbg);border-color:var(--bad);color:var(--bad);font-weight:700}
@@ -299,8 +308,8 @@ function viewWeek(){
   }
   const isNext = wk === "next" && N, P = isNext ? N.posts : posts, B = isNext ? new Date(N.week_start + "T00:00:00") : W0;
   if (isNext && N.posts.some(p => p.missing)) h += `<p class="hint">חלק מהעמדות עוד לא פורסמו: ${N.posts.filter(p=>p.missing).map(p=>esc(p.name)).join(", ")}.</p>`;
-  if (isNext && N.note) h += `<div class="alert sw">${esc(N.note)}</div>`;
-  if (!isNext && DATA.note) h += `<div class="alert sw">${esc(DATA.note)}</div>`;
+  const wnote = isNext ? N.note : DATA.note;
+  if (wnote) h += `<details class="wnote"><summary>הערות לסידור השבוע</summary><p>${esc(wnote).replace(/ · /g, "<br>")}</p></details>`;
   h += `<div class="days" role="tablist">${DAYN.map((d,i)=>{ const dt = addDays(B,i);
     const isT = today >= dt && today < addDays(dt,1);
     return `<button type="button" role="tab" class="${isT?"today":""}" aria-selected="${i===day}" data-i="${i}">${d}<span>${isT?"היום":dm(dt)}</span></button>`; }).join("")}</div>`;
@@ -311,12 +320,13 @@ function viewWeek(){
       if (p.missing) { h += `<td style="color:var(--faint)">—</td>`; continue; }
       const c = p.rows[r][2][day]; const t = nameOf(c);
       const cls = typeof c === "string" ? "" : (c.c === "swap" ? "sw" : c.c === "live" ? "lv" : "nt");
-      h += `<td class="${cls}">${t.split(", ").map(n=>`<span class="n${me && same(n,me)?" me":""}">${esc(n)}</span>`).join(", ")}${typeof c==="string"?"":`<small>${esc(c.m)}</small>`}</td>`;
+      h += `<td class="${cls}"${typeof c === "string" ? "" : ` data-why="${esc(c.m)}"`}>${t.split(", ").map(n=>`<span class="n${me && same(n,me)?" me":""}">${esc(n)}</span>`).join(", ")}</td>`;
     }
     h += `</tr>`;
   }
-  h += `</tbody></table></div><p class="hint">כתום = הוחלף בקבוצה · ירוק = שונה לפי דיווח מהשטח · סגול = הערה בסידור · חלק מהעמדות מתחילות רבע שעה קודם (לפי הסידור)</p>`;
+  h += `</tbody></table></div><p class="hint">משבצת צבועה = שינוי מהסידור שפורסם. לחיצה עליה מראה מה השתנה.</p>`;
   view.innerHTML = h;
+  view.querySelectorAll("td[data-why]").forEach(td => td.onclick = () => toast(td.dataset.why));
   view.querySelectorAll(".days button").forEach(b => b.onclick = () => { day = +b.dataset.i; viewWeek(); });
   view.querySelectorAll("[data-w]").forEach(b => b.onclick = () => { wk = b.dataset.w; viewWeek(); });
 }
@@ -348,7 +358,7 @@ function viewMine(){
       <div class="s"><i class="dot" style="background:var(${x.color})"></i> ${SH[x.s]} · ${esc(x.post)}<span>${hhmm(x.start)}-${hhmm(x.end)}${typeof x.cell!=="string"?" · "+esc(x.cell.m):""}</span>${warn.has(x)?`<div class="warn">⚠ ${warn.get(x)}</div>`:""}</div>
       <div style="display:flex;flex-direction:column;gap:4px"><a class="cal" href="${calLink(x)}" target="_blank" rel="noopener">+ ליומן</a>${x.end > new Date() ? `<button type="button" class="cal" data-cant="${list.filter(y => y.end > new Date()).indexOf(x)}">לא יכול</button>` : ""}</div></li>`).join("")
     : `<li class="empty">אין לך משמרות השבוע.</li>`;
-  h += `</ul></div><p class="hint">"+ ליומן" פותח את Google Calendar עם המשמרת מוכנה לשמירה. "לא יכול" מציג מי לשאול, לפי הסדר.</p>`;
+  h += `</ul></div>${list.length ? `<button type="button" class="btn sec" id="mine_ics">📅 הוסף את כל המשמרות שלי ליומן</button>` : ""}<p class="hint">"+ ליומן" מוסיף משמרת אחת. "לא יכול" מציג מי לשאול, לפי הסדר.</p>`;
   view.innerHTML = h;
   wireMine();
 }
@@ -760,14 +770,17 @@ function saveGuard(){
 
 // ---- constraints tab 2.0 ----
 let consTab = store.get("consTab", "w0");
+let brush = store.get("brush", 3);   // what a tap marks: 1 prefer, 2 prefer not, 3 blocked
 function gridHTML(cells, ws, opts){
-  let h = `<div class="grid7 g2"><span></span>${SH.map(s => `<span class="h">${s}</span>`).join("")}`;
+  let h = `<div class="brush" role="radiogroup" aria-label="מה לסמן">${[[3, "⛔ חסום"], [2, "↓ מעדיף שלא"], [1, "↑ מעדיף"]].map(([v, l]) => `<button type="button" role="radio" class="st${v}" data-brush="${v}" aria-checked="${brush === v}">${l}</button>`).join("")}</div>
+    <p class="hint" style="margin:0">בחר מה לסמן, ואז לחיצה אחת על משבצת. לחיצה נוספת מנקה.</p>
+    <div class="grid7 g2"><span></span>${SH.map(s => `<span class="h">${s}</span>`).join("")}`;
   for (let d = 0; d < 7; d++) {
-    h += `<div class="dn">${DAYN[d]}<span>${ws ? dm(addDays(ws, d)) : (d >= 5 ? "סבב" : "")}</span></div>`;
+    h += `<div class="dn">${ws ? `${DAYN[d]} <b>${dm(addDays(ws, d))}</b>` : DAYN[d]}${!ws && d >= 5 ? "<span>סבב</span>" : ""}</div>`;
     for (let s = 0; s < 4; s++) { const k = d + "-" + s, v = cells[k] || 0, fixed = opts && opts.fixed && opts.fixed[k], pend = opts && opts.pend && opts.pend.includes(k);
       h += `<button type="button" class="tg st${v}" data-g="${k}" aria-label="${DAYN[d]} ${SH[s]}: ${STATE_TXT[v]}">${STATES[v]}${pend ? "<small>ממתין</small>" : fixed ? "<small>קבוע</small>" : ""}</button>`; }
   }
-  return h + `</div><div class="legend2"><span class="st1">↑ מעדיף</span><span class="st2">↓ מעדיף שלא</span><span class="st3">⛔ חסום</span><span>נגיעה מחליפה מצב</span></div>`;
+  return h + `</div>`;
 }
 // Blocks (Nitzan, 20.11): up to 3 a week are approved automatically; the 4th and on wait for Nitzan and count as
 // "prefer not" until he approves. A fixed block he already approved in the template does not use the quota.
@@ -816,9 +829,10 @@ function viewCons(){
   view.innerHTML = h;
   view.querySelectorAll("[data-ct]").forEach(b => b.onclick = () => { consTab = b.dataset.ct; store.set("consTab", consTab); saveMsg = ""; viewCons(); });
   const touch = () => { const t = new Date().toISOString(); if (consTab.startsWith("w")) G.cons[iso(W[consTab === "w0" ? 0 : 1])].at = t; saveGuard(); };
+  view.querySelectorAll("[data-brush]").forEach(b => b.onclick = () => { brush = +b.dataset.brush; store.set("brush", brush); viewCons(); });
   view.querySelectorAll("[data-g]").forEach(b => b.onclick = () => {
     const cells = consTab === "tpl" ? G.tpl.cells : G.cons[iso(W[consTab === "w0" ? 0 : 1])].cells;
-    const k = b.dataset.g; cells[k] = ((cells[k] || 0) + 1) % 4; if (!cells[k]) delete cells[k];
+    const k = b.dataset.g; if (cells[k] === brush) delete cells[k]; else cells[k] = brush;
     if (consTab === "tpl") G.tpl.at = new Date().toISOString();
     touch(); viewCons(); });
   const cr = document.getElementById("creason"); if (cr) cr.oninput = () => { G.cons[iso(W[consTab === "w0" ? 0 : 1])].reasons = cr.value; touch(); };
@@ -844,7 +858,14 @@ function mineExtras(){
   }
   return h;
 }
+function addAllToCalendar(){
+  const list = [...WEEKS.cur.slots, ...((WEEKS.next || {}).slots || [])].filter(x => same(x.who, me) && x.end > new Date()).sort((a, b) => a.start - b.start);
+  if (!list.length) { toast("אין משמרות קרובות"); return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([icsFor(list)], {type: "text/calendar"})); a.download = "bunker-shifts.ics"; document.body.appendChild(a); a.click(); a.remove();
+  toast(list.length + " משמרות נשלחו ליומן");
+}
 function wireMine(){
+  const mi = document.getElementById("mine_ics"); if (mi) mi.onclick = addAllToCalendar;
   const po = document.getElementById("pushon"); if (po) po.onclick = enablePush;
   const pi = document.getElementById("pinst"); if (pi) pi.onclick = installBot;
   const vs = document.getElementById("vstart"); if (vs) vs.onclick = () => verifySheet(me);
@@ -1014,11 +1035,7 @@ function viewSettings(){
   if (q("pinst")) q("pinst").onclick = installBot;
   if (q("st_mail")) q("st_mail").oninput = e => { GDOC.prof.email = e.target.value.trim(); saveGuard(); };
   if (q("st_cal")) q("st_cal").onclick = () => { const P = GDOC.prof; if (!P.cal && !/^\S+@\S+\.\S+$/.test(P.email || "")) { toast("קודם מייל תקין"); return; } P.cal = !P.cal; saveGuard(); viewSettings(); };
-  if (q("st_ics")) q("st_ics").onclick = () => {
-    const list = [...WEEKS.cur.slots, ...((WEEKS.next || {}).slots || [])].filter(x => same(x.who, me) && x.end > new Date()).sort((a, b) => a.start - b.start);
-    if (!list.length) { toast("אין משמרות קרובות"); return; }
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([icsFor(list)], {type: "text/calendar"})); a.download = "bunker-shifts.ics"; document.body.appendChild(a); a.click(); a.remove();
-    toast(list.length + " משמרות נשלחו ליומן"); };
+  if (q("st_ics")) q("st_ics").onclick = addAllToCalendar;
 }
 // ---- scheduler (Nitzan): team, draft, emergency, ledger ----
 let ROSTER = null, ADOC = null, aState = "idle", aTab = store.get("aTab", "team"), GDOCS = {}, draft = null;
