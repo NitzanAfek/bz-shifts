@@ -1021,12 +1021,13 @@ function viewSettings(){
     toast(list.length + " משמרות נשלחו ליומן"); };
 }
 // ---- scheduler (Nitzan): team, draft, emergency, ledger ----
-let ADOC = null, aState = "idle", aTab = store.get("aTab", "team"), GDOCS = {}, draft = null;
+let ROSTER = null, ADOC = null, aState = "idle", aTab = store.get("aTab", "team"), GDOCS = {}, draft = null;
 async function loadAdmin(force){
   if (!FBC || !ADMIN || (aState === "loading") || (aState === "ok" && !force)) return;
   aState = "loading";
   try {
     ADOC = await fsGet("admin/" + ADMIN) || {guards: {}, team: null, drafts: {}};
+    try { ROSTER = await fsGet("admin/" + ADMIN + "-roster"); } catch(e) { ROSTER = null; }
     const toks = Object.keys(ADOC.guards || {});
     const got = await fsMany(toks.map(t => "guards/" + t));
     GDOCS = {}; toks.forEach(t => { GDOCS[ADOC.guards[t]] = Object.assign({token: t}, got["guards/" + t] || {}); });
@@ -1138,7 +1139,7 @@ function viewAdmin(){
   if (!FBC) { view.innerHTML = `<div class="card"><h2>שיבוץ</h2><div class="alert bad">השרת עוד לא מחובר.</div></div>`; return; }
   if (aState === "idle" || aState === "loading") { view.innerHTML = `<div class="card"><p class="hint">טוען את נתוני הצוות…</p></div>`; loadAdmin(); return; }
   if (aState === "error") { view.innerHTML = `<div class="card"><div class="alert bad">אין חיבור לשרת. <button class="mebtn" id="aretry">נסה שוב</button></div></div>`; document.getElementById("aretry").onclick = () => { aState = "idle"; viewAdmin(); }; return; }
-  const tabs = [["team", "צוות"], ["plan", "שיבוץ"], ["sos", "חירום"], ["fair", "הוגנות"]];
+  const tabs = [["team", "צוות"], ["pool", "שומרים"], ["plan", "שיבוץ"], ["sos", "חירום"], ["fair", "הוגנות"]];
   let h = `<div class="seg" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-at="${k}" aria-selected="${aTab === k}">${l}</button>`).join("")}</div>`;
   const core = teamCore(ADOC), flo = teamFloaters(ADOC), W = planWeeks();
   if (aTab === "team") {
@@ -1167,6 +1168,23 @@ function viewAdmin(){
     if (fresh3.length) h += `<div class="card"><details><summary class="hint" style="cursor:pointer">טפסי החלפה שלא נקלטו (${fresh3.length}) · 3 ימים אחרונים</summary><ul class="hint">${fresh3.map(f => `<li>${esc(f)}</li>`).join("")}</ul></details></div>`;
     h += `<div class="card"><label class="f">הוסף שומר לרשימה<select id="addg"><option value="">בחר…</option>${DIR.people.filter(p => !p.left && !core.includes(p.n) && !flo.includes(p.n)).map(p => `<option>${esc(p.n)}</option>`).join("")}</select></label>
       <p class="hint">קבוע = 5 משמרות ו־2 ימי חופש. מתגבר = משלים את 28 המשמרות. "עוד לא מילא" אחרי שלישי 12:00 = כדאי תזכורת.</p></div>`;
+  } else if (aTab === "pool") {
+    // the guard pool by phone: everyone in the 4 bunker WhatsApp groups, kept up to date by the bot
+    const R = (ROSTER && ROSTER.people) || {}, rows = Object.entries(R);
+    const act = rows.filter(([, p]) => !p.left), gone = rows.filter(([, p]) => p.left);
+    const cnt = f => act.filter(([, p]) => f(p)).length;
+    const ph = k => ("0" + k.split("@")[0].slice(3)).replace(/^(\d{3})(\d{3})(\d{4})$/, "$1-$2-$3");
+    const names = DIR.people.map(p => p.n);
+    const sel = (k, cur) => `<select data-pn="${esc(k)}" style="padding:4px 6px;font-size:14px;width:auto;max-width:140px"><option value="">${cur ? "" : "? לא מזוהה"}</option>${names.map(n => `<option${n === cur ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`;
+    const ok = v => v ? `<span style="color:var(--good);font-weight:700">✓</span>` : `<span style="color:var(--faint)">·</span>`;
+    act.sort(([, a], [, b]) => (!!a.name - !!b.name) || a.name.localeCompare(b.name, "he"));
+    h += `<div class="card"><div class="stats s4"><div><b>${act.length}</b><span>בקבוצות</span></div><div><b>${cnt(p => p.app)}</b><span>נרשמו לאפליקציה</span></div><div><b>${cnt(p => p.verified)}</b><span>אימתו טלפון</span></div><div><b>${cnt(p => p.email)}</b><span>הכניסו מייל</span></div></div>
+      <p class="hint">${ROSTER ? "כל מי שנמצא ב־4 קבוצות הבונקר, לפי מספר טלפון. מתעדכן לבד מהוואטסאפ. עודכן " + esc(ROSTER.updated.replace("T", " ")) + "." : "הרשימה עוד לא נבנתה."} "?" = מספר שהבוט לא זיהה: בחר שם והוא יתעדכן בריצה הבאה.</p></div>
+      <div class="card flush"><div class="tw"><table><thead><tr><th style="text-align:start">שומר</th><th>טלפון</th><th>קבוצות</th><th>נרשם</th><th>אימת</th><th>מייל</th><th>🔔</th></tr></thead><tbody>
+      ${act.map(([k, p]) => `<tr><th style="font-weight:600">${sel(k, p.name)}${p.wa && p.wa !== p.name ? `<small>בוואטסאפ: ${esc(p.wa)}</small>` : ""}</th><td style="direction:ltr;font-variant-numeric:tabular-nums;font-size:13px">${ph(k)}</td>
+        <td title="${esc(p.groups.join(" · "))}">${p.groups.length}/4</td><td>${ok(p.app)}</td><td>${ok(p.verified)}</td><td title="${esc(p.email)}">${ok(p.email)}${p.cal ? "<small>יומן</small>" : ""}</td><td>${p.push ? "🔔" : ok(0)}</td></tr>`).join("")}
+      </tbody></table></div></div>
+      ${gone.length ? `<div class="card"><h3>יצאו מהקבוצות</h3>${gone.map(([k, p]) => `<p class="hint">${esc(p.name || p.wa || ph(k))} · ${ph(k)} · יצא ${esc(p.left.slice(8, 10) + "." + p.left.slice(5, 7))}</p>`).join("")}</div>` : ""}`;
   } else if (aTab === "plan") {
     const ws = W[Math.min(aWeek, 1)], post = aPost || teamPostFor(ws);
     const needed = 28 - core.length * 5;
@@ -1208,6 +1226,10 @@ function viewAdmin(){
   view.querySelectorAll("[data-kind]").forEach(b => b.onclick = () => { const n = b.dataset.kind; ADOC.team = {core: teamCore(ADOC).slice(), floaters: teamFloaters(ADOC).slice()};
     if (ADOC.team.core.includes(n)) { ADOC.team.core = ADOC.team.core.filter(x => x !== n); ADOC.team.floaters.push(n); } else { ADOC.team.floaters = ADOC.team.floaters.filter(x => x !== n); ADOC.team.core.push(n); }
     saveAdmin(); viewAdmin(); });
+  view.querySelectorAll("[data-pn]").forEach(sl => sl.onchange = async () => { ADOC.phoneNames = ADOC.phoneNames || {};
+    if (sl.value) ADOC.phoneNames[sl.dataset.pn] = sl.value; else delete ADOC.phoneNames[sl.dataset.pn];
+    if (ROSTER && ROSTER.people[sl.dataset.pn]) ROSTER.people[sl.dataset.pn].name = sl.value;
+    await saveAdmin(); toast("נשמר. הבוט יעדכן את הרשימה בריצה הבאה"); });
   let alT = null;
   view.querySelectorAll("[data-al]").forEach(i => i.onchange = () => { const [n, t] = i.dataset.al.split("|"); ADOC.alloc[n] = ADOC.alloc[n] || {};
     ADOC.alloc[n][t] = Math.max(0, Math.min(5, +i.value || 0)); if (t === TEAM_LABEL) aCaps[n] = ADOC.alloc[n][t]; clearTimeout(alT); alT = setTimeout(saveAdmin, 600); viewAdmin(); });
