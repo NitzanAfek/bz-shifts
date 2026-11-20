@@ -771,7 +771,7 @@ function viewCons(){
     return; }
   if (gState === "idle" || gState === "loading") { view.innerHTML = `<div class="card"><p class="hint">טוען את האילוצים שלך…</p></div>`; loadGuard(); return; }
   if (gState !== "ok") { view.innerHTML = `<div class="card"><h2>אילוצים</h2><div class="alert bad">${gState === "missing" ? "הקישור האישי לא מוכר. בקש מניצן קישור חדש." : "אין חיבור לשרת כרגע. נסה שוב בעוד רגע."}</div></div>`; if (gState === "error") { gState = "idle"; } return; }
-  const W = planWeeks(), G = GDOC; G.cons = G.cons || {}; G.tpl = G.tpl || {cells: {}}; G.prof = G.prof || {target: 5, maxN: 2, nightPref: 0, dbl: false};
+  const W = planWeeks(), G = GDOC; G.cons = G.cons || {}; G.tpl = G.tpl || {cells: {}}; G.prof = G.prof || {maxN: 2, nightPref: 0, note: ""};
   const tabs = [["w0", "שבוע " + dm(W[0])], ["w1", "שבוע " + dm(W[1])], ["tpl", "התבנית שלי"], ["prof", "העדפות"]];
   let h = `<div class="seg" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-ct="${k}" aria-selected="${consTab === k}">${l}</button>`).join("")}</div>`;
   if (consTab === "w0" || consTab === "w1") {
@@ -794,11 +794,10 @@ function viewCons(){
       <p class="hint" id="savest">${esc(saveMsg)}</p></div>`;
   } else {
     const P = G.prof;
-    h += `<div class="card"><h3>העדפות קבועות</h3>
-      <label class="f">כמה משמרות בשבוע אתה רוצה (עד 5)<select id="pf_t">${[3,4,5].map(v => `<option${P.target == v ? " selected" : ""}>${v}</option>`).join("")}</select></label>
+    h += `<div class="card"><h3>העדפות קבועות</h3><p class="hint">כל שומר עושה 5 משמרות בשבוע עם 2 ימי חופש. משמרת כפולה אסורה לפי נוהלי הבונקר.</p>
+      <label class="f">לילות<select id="pf_np">${[[-1,"מעדיף כמה שפחות לילות"],[0,"ניטרלי"],[1,"מעדיף לילות"]].map(([v,l]) => `<option value="${v}"${P.nightPref == v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
       <label class="f">מקסימום לילות בשבוע<select id="pf_n">${[0,1,2,3].map(v => `<option${P.maxN == v ? " selected" : ""}>${v}</option>`).join("")}</select></label>
-      <label class="f">לילות<select id="pf_np">${[[1,"מעדיף לילות"],[0,"ניטרלי"],[-1,"מעדיף בלי לילות"]].map(([v,l]) => `<option value="${v}"${P.nightPref == v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
-      <label class="f">משמרת כפולה או שישית בחירום<select id="pf_d"><option value="0"${!P.dbl ? " selected" : ""}>לא</option><option value="1"${P.dbl ? " selected" : ""}>מוכן לפעמים</option></select></label>
+      <label class="f">הערה כללית על הסידור (לא חובה)<textarea id="pf_note" placeholder="למשל: מאוד נוח לי משמרות צהריים">${esc(P.note || "")}</textarea></label>
       <p class="hint" id="savest">${esc(saveMsg)}</p></div>`;
   }
   view.innerHTML = h;
@@ -811,8 +810,9 @@ function viewCons(){
     touch(); viewCons(); });
   const cr = document.getElementById("creason"); if (cr) cr.oninput = () => { G.cons[iso(W[consTab === "w0" ? 0 : 1])].reasons = cr.value; touch(); };
   const cn = document.getElementById("cnote2"); if (cn) cn.oninput = () => { G.cons[iso(W[consTab === "w0" ? 0 : 1])].note = cn.value; touch(); };
-  [["pf_t", "target", Number], ["pf_n", "maxN", Number], ["pf_np", "nightPref", Number], ["pf_d", "dbl", v => v === "1"]].forEach(([id, k, f]) => {
+  [["pf_n", "maxN", Number], ["pf_np", "nightPref", Number]].forEach(([id, k, f]) => {
     const el = document.getElementById(id); if (el) el.onchange = () => { G.prof[k] = f(el.value); G.prof.at = new Date().toISOString(); saveGuard(); }; });
+  const pn = document.getElementById("pf_note"); if (pn) pn.oninput = () => { G.prof.note = pn.value; G.prof.at = new Date().toISOString(); saveGuard(); };
 }
 
 // ---- "mine" additions: confirm next week, can't make it, my ledger ----
@@ -1092,7 +1092,7 @@ function viewAdmin(){
     const row = (n, kind) => { const g = GDOCS[n] || {}, ws = iso(W[0]);
       const st = [(g.push || []).length ? "🔔" : "", g.verified ? "✓ אומת" : "", g.tpl && Object.keys(g.tpl.cells || {}).length ? "✓ תבנית" : "", g.cons && g.cons[ws] && g.cons[ws].at ? "✓ אילוצים " + dm(W[0]) : "", WEEKS.next && g.conf && g.conf[DATA.next.week_start] ? "✓ אישר" : ""].filter(Boolean);
       const pend = g.tpl ? Object.keys(g.tpl.cells || {}).filter(k => g.tpl.cells[k] === 3 && !(g.tplOk || {})[k]) : [];
-      return `<li><div class="s">${esc(n)} <small style="color:var(--muted)">${kind}</small><span>${st.length ? st.join(" · ") : (g.token ? "עוד לא מילא" : "אין קישור")}</span>
+      return `<li><div class="s">${esc(n)} <small style="color:var(--muted)">${kind}</small><span>${st.length ? st.join(" · ") : (g.token ? "עוד לא מילא" : "אין קישור")}</span>${g.prof && g.prof.note ? `<span>💬 ${esc(g.prof.note)}</span>` : ""}
         ${pend.length ? `<span class="warn">חסימה קבועה לאישור: ${pend.map(k => DAYN[k.split("-")[0]] + " " + SH[k.split("-")[1]]).join(", ")} <button class="mebtn" data-appr="${esc(n)}">אשר</button></span>` : ""}</div>
         ${g.token ? `<a class="cal" target="_blank" rel="noopener" href="${waLink(`היי ${first(n)} 👋\nזה הקישור האישי שלך לאפליקציית הבונקר: אילוצים, התבנית השבועית שלך ואישור משמרות.\n${linkFor(g.token)}\nהקישור אישי, אל תעביר אותו.`)}">שלח</a><button class="cal" data-cpl="${esc(n)}">העתק</button>` : `<button class="cal" data-mk="${esc(n)}">צור קישור</button>`}
         <button class="cal" data-kind="${esc(n)}">${kind === "קבוע" ? "← מתגבר" : "← קבוע"}</button></li>`; };
@@ -1103,7 +1103,7 @@ function viewAdmin(){
       <p class="hint">קבוע = 5 משמרות ו־2 ימי חופש. מתגבר = משלים את 28 המשמרות. "עוד לא מילא" אחרי שלישי 12:00 = כדאי תזכורת.</p></div>`;
   } else if (aTab === "plan") {
     const ws = W[Math.min(aWeek, 1)], post = aPost || teamPostFor(ws);
-    const needed = 28 - core.reduce((a, n) => a + Math.min(5, ((GDOCS[n] || {}).prof || {}).target || 5), 0);
+    const needed = 28 - core.length * 5;
     flo.forEach((n, i) => { if (aCaps[n] == null) aCaps[n] = i === 0 ? Math.max(0, Math.min(5, needed)) : 0; });
     h += `<div class="card"><h3>טיוטה לשבוע</h3><div class="seg">${W.map((w, i) => `<button type="button" data-aw="${i}" aria-selected="${aWeek === i}">${dm(w)}</button>`).join("")}</div>
       <label class="f">עמדת הצוות (לפי הסבב: ${esc(teamPostFor(ws))})<select id="apost">${(DIR.rotation || []).map(p => `<option${p === post ? " selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
@@ -1148,8 +1148,8 @@ function viewAdmin(){
       const ws = W[Math.min(aWeek, 1)], post = aPost || teamPostFor(ws);
       const prevSlots = +addDays(ws, -7) === +WEEKS.cur.base ? WEEKS.cur.slots : (WEEKS.next && +addDays(ws, -7) === +WEEKS.next.base ? WEEKS.next.slots : []);
       const lastEnd = n => { const m = prevSlots.filter(y => same(canonN(y.who), n)).map(y => (y.end - ws) / 36e5); return m.length ? Math.max(...m) : -99; };
-      const mk = (n, kind) => { const g = GDOCS[n] || {}; return {n, kind, cap: kind === "core" ? Math.min(5, (g.prof || {}).target || 5) : (aCaps[n] || 0),
-        cells: effCells(g, ws), prof: g.prof || {target: 5, maxN: null, nightPref: 0}, led: ledgerOf(n), lastEnd: lastEnd(n)}; };
+      const mk = (n, kind) => { const g = GDOCS[n] || {}; return {n, kind, cap: kind === "core" ? 5 : (aCaps[n] || 0),
+        cells: effCells(g, ws), prof: Object.assign({maxN: null, nightPref: 0}, g.prof || {}, {target: 5}), led: ledgerOf(n), lastEnd: lastEnd(n)}; };
       const ppl = [...core.map(n => mk(n, "core")), ...flo.filter(n => aCaps[n] > 0).map(n => mk(n, "floater"))];
       draft = schedule(ws, post, ppl); drawDraft(); run.textContent = "בנה שוב (גרסה אחרת)"; }, 30); };
     if (draft) drawDraft(); }
@@ -1166,7 +1166,7 @@ function drawDraft(){
   t += `</tbody></table></div></div><p class="hint">ירוק = קיבל משמרת שביקש · כתום = "מעדיף שלא" שנשבר · אדום = אין שומר</p>`;
   t += `<div class="card flush"><div class="tw"><table><thead><tr><th style="text-align:start;width:96px">שומר</th><th>משמרות</th><th>לילות</th><th>שישי</th><th>שבת</th><th>חופש</th></tr></thead><tbody>
     ${d.people.map(p => `<tr><th>${esc(p.n)}${p.kind === "floater" ? "<small>מתגבר</small>" : ""}</th><td>${p.cnt}</td><td>${p.nt}<small>${p.led.nt} ב־${LED.weeks.length} שב׳</small></td><td>${p.fri}</td><td>${p.sat}<small>${p.led.sat} ב־${LED.weeks.length} שב׳</small></td><td>${p.off}</td></tr>`).join("")}</tbody></table></div></div>`;
-  t += `<div class="card"><h3>למה כל אחד קיבל את מה שקיבל</h3>${d.people.filter(p => p.cnt).map(p => `<p class="hint"><b>${esc(p.n)}:</b> ${p.pref ? `קיבל ${p.got.length} מתוך ${p.pref} "מעדיף". ` : ""}${p.broke.length ? `"מעדיף שלא" שנשבר: ${p.broke.join(", ")} (אין חלופה בלי לשבור חוק). ` : ""}לילות ב־${LED.weeks.length} שבועות: ${p.led.nt}.${p.kind === "core" ? (p.off >= 3 ? " 3 ימי חופש השבוע." : "") : " מתגבר."}</p>`).join("")}</div>`;
+  t += `<div class="card"><h3>למה כל אחד קיבל את מה שקיבל</h3>${d.people.filter(p => p.cnt).map(p => `<p class="hint"><b>${esc(p.n)}:</b> ${p.pref ? `קיבל ${p.got.length} מתוך ${p.pref} "מעדיף". ` : ""}${p.broke.length ? `"מעדיף שלא" שנשבר: ${p.broke.join(", ")} (אין חלופה בלי לשבור חוק). ` : ""}לילות ב־${LED.weeks.length} שבועות: ${p.led.nt}.${p.kind === "core" ? (p.off >= 3 ? " 3 ימי חופש השבוע." : "") : " מתגבר."}${((GDOCS[p.n] || {}).prof || {}).note ? ` 💬 "${esc(GDOCS[p.n].prof.note)}"` : ""}</p>`).join("")}</div>`;
   const txt = draftText(d);
   t += `<div class="card"><h3>טיוטה, לא פורסם</h3><div class="actions"><a class="btn wa" target="_blank" rel="noopener" href="${waLink(txt)}">שלח בוואטסאפ</a><button type="button" class="btn sec" id="acp">העתק</button><button type="button" class="btn sec" id="asave">שמור טיוטה</button></div>
     <p class="hint">שלב 0: הטיוטה לא מחליפה את הסידור של אלירן. משווים מולו שבועיים.</p></div>`;
