@@ -695,7 +695,7 @@ const TEAM_LABEL = "אלירן";
 // ---- weeks: a week's constraints lock on the Tuesday before it at 20:00 ----
 const sundayOnOrAfter = d => addDays(d, (7 - d.getDay()) % 7);
 const iso = d => d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
-const lockAt = ws => { const t = addDays(ws, -5); return new Date(t.getFullYear(), t.getMonth(), t.getDate(), 20, 0); };
+const lockAt = ws => { const t = addDays(ws, -7); return new Date(t.getFullYear(), t.getMonth(), t.getDate(), 20, 0); };   // Sunday 20:00 the week before (Nitzan, 20.11)
 function planWeeks(){   // the next two weeks whose constraints are still open
   const out = []; let w = sundayOnOrAfter(addDays(new Date(), 1));
   while (out.length < 2) { if (new Date() < lockAt(w)) out.push(w); w = addDays(w, 7); }
@@ -757,12 +757,19 @@ function gridHTML(cells, ws, opts){
   let h = `<div class="grid7 g2"><span></span>${SH.map(s => `<span class="h">${s}</span>`).join("")}`;
   for (let d = 0; d < 7; d++) {
     h += `<div class="dn">${DAYN[d]}<span>${ws ? dm(addDays(ws, d)) : (d >= 5 ? "סבב" : "")}</span></div>`;
-    for (let s = 0; s < 4; s++) { const v = cells[d + "-" + s] || 0, fixed = opts && opts.fixed && opts.fixed[d + "-" + s];
-      h += `<button type="button" class="tg st${v}" data-g="${d}-${s}" aria-label="${DAYN[d]} ${SH[s]}: ${STATE_TXT[v]}">${STATES[v]}${fixed ? "<small>קבוע</small>" : ""}</button>`; }
+    for (let s = 0; s < 4; s++) { const k = d + "-" + s, v = cells[k] || 0, fixed = opts && opts.fixed && opts.fixed[k], pend = opts && opts.pend && opts.pend.includes(k);
+      h += `<button type="button" class="tg st${v}" data-g="${k}" aria-label="${DAYN[d]} ${SH[s]}: ${STATE_TXT[v]}">${STATES[v]}${pend ? "<small>ממתין</small>" : fixed ? "<small>קבוע</small>" : ""}</button>`; }
   }
   return h + `</div><div class="legend2"><span class="st1">↑ מעדיף</span><span class="st2">↓ מעדיף שלא</span><span class="st3">⛔ חסום</span><span>נגיעה מחליפה מצב</span></div>`;
 }
-function oneOffBlocks(cells, tpl){ return Object.keys(cells).filter(k => cells[k] === 3 && (tpl[k] || 0) !== 3); }
+// Blocks (Nitzan, 20.11): up to 3 a week are approved automatically; the 4th and on wait for Nitzan and count as
+// "prefer not" until he approves. A fixed block he already approved in the template does not use the quota.
+function blockSplit(cells, tplOk, weekOk){
+  const ord = k => k.split("-").map(Number).reduce((a, x) => a * 4 + x, 0);
+  const blocks = Object.keys(cells).filter(k => cells[k] === 3).sort((a, b) => ord(a) - ord(b));
+  const rest = blocks.filter(k => !(tplOk || {})[k]);
+  return {blocks, pend: weekOk ? [] : rest.slice(3)};
+}
 function viewCons(){
   if (!me) { view.innerHTML = `<div class="card"><h2>אילוצים</h2><p class="hint">קודם בחר את השם שלך.</p><button type="button" class="btn pri" id="setme">בחירת שם</button></div>`; document.getElementById("setme").onclick = pickMe; return; }
   if (!FBC || !TOKEN) { viewConsLegacy();
@@ -772,29 +779,28 @@ function viewCons(){
   if (gState === "idle" || gState === "loading") { view.innerHTML = `<div class="card"><p class="hint">טוען את האילוצים שלך…</p></div>`; loadGuard(); return; }
   if (gState !== "ok") { view.innerHTML = `<div class="card"><h2>אילוצים</h2><div class="alert bad">${gState === "missing" ? "הקישור האישי לא מוכר. בקש מניצן קישור חדש." : "אין חיבור לשרת כרגע. נסה שוב בעוד רגע."}</div></div>`; if (gState === "error") { gState = "idle"; } return; }
   const W = planWeeks(), G = GDOC; G.cons = G.cons || {}; G.tpl = G.tpl || {cells: {}}; G.prof = G.prof || {maxN: 2, nightPref: 0, note: ""};
-  const tabs = [["w0", "שבוע " + dm(W[0])], ["w1", "שבוע " + dm(W[1])], ["tpl", "התבנית שלי"], ["prof", "העדפות"]];
+  if (consTab === "prof") consTab = "tpl";
+  const tabs = [["w0", "שבוע " + dm(W[0])], ["w1", "שבוע " + dm(W[1])], ["tpl", "התבנית שלי"]];
   let h = `<div class="seg" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-ct="${k}" aria-selected="${consTab === k}">${l}</button>`).join("")}</div>`;
   if (consTab === "w0" || consTab === "w1") {
     const ws = W[consTab === "w0" ? 0 : 1], key = iso(ws);
     if (!G.cons[key]) G.cons[key] = {cells: Object.assign({}, G.tpl.cells), reasons: "", note: ""};
-    const C = G.cons[key], extra = oneOffBlocks(C.cells, G.tpl.cells);
+    const C = G.cons[key], B = blockSplit(C.cells, G.tplOk, (G.consOk || {})[key]);
     const lk = lockAt(ws);
     h += `<div class="card"><h3>${dm(ws)} עד ${dm(addDays(ws, 6))} · ננעל ב${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00</h3>
-      <p class="hint">מתחיל מהתבנית שלך. שנה רק מה שחורג השבוע.</p>${gridHTML(C.cells, ws)}
-      <p class="hint">חסימות חד פעמיות: <b>${extra.length}</b> מתוך 3 בלי הסבר.</p>
-      ${extra.length > 3 ? `<label class="f">יותר מ־3 חסימות: למה? (רק ניצן רואה)<textarea id="creason">${esc(C.reasons || "")}</textarea></label>` : ""}
+      <p class="hint">מתחיל מהתבנית שלך. שנה רק מה שחורג השבוע.</p>${gridHTML(C.cells, ws, {fixed: G.tplOk || {}, pend: B.pend})}
+      <p class="hint">חסימות השבוע: <b>${B.blocks.length}</b>. עד 3 מאושרות אוטומטית.</p>
+      ${B.pend.length ? `<div class="alert sw">${B.pend.length === 1 ? "חסימה אחת" : B.pend.length + " חסימות"} מעבר ל־3 מחכות לאישור של ניצן. עד האישור הן נחשבות "מעדיף שלא".</div>
+        <label class="f">למה צריך יותר מ־3? (רק ניצן רואה)<textarea id="creason">${esc(C.reasons || "")}</textarea></label>` : ""}
       <label class="f">הערה לניצן (לא חובה)<textarea id="cnote2" placeholder="למשל: מעדיף לא שני לילות ברצף">${esc(C.note || "")}</textarea></label>
       <p class="hint" id="savest">${esc(saveMsg || (C.at ? "✓ נשמר" : "עוד לא שמרת שינוי"))}</p></div>`;
   } else if (consTab === "tpl") {
-    const fixedOk = G.tplOk || {};
-    const pend = Object.keys(G.tpl.cells).filter(k => G.tpl.cells[k] === 3 && !fixedOk[k]);
+    const fixedOk = G.tplOk || {}, B = blockSplit(G.tpl.cells, fixedOk, false), P = G.prof;
     h += `<div class="card"><h3>התבנית השבועית האידיאלית שלך</h3><p class="hint">ממלאים פעם אחת. כל שבוע חדש מתחיל ממנה. שישי ושבת בסבב לפי הוגנות: סמן שם רק מה שבאמת לא אפשרי.</p>
-      ${gridHTML(G.tpl.cells, null, {fixed: fixedOk})}
-      ${pend.length ? `<div class="alert sw">${pend.length} חסימות קבועות מחכות לאישור של ניצן. עד האישור הן נחשבות "מעדיף שלא".</div>` : ""}
-      <p class="hint" id="savest">${esc(saveMsg)}</p></div>`;
-  } else {
-    const P = G.prof;
-    h += `<div class="card"><h3>העדפות קבועות</h3><p class="hint">כל שומר עושה 5 משמרות בשבוע עם 2 ימי חופש. משמרת כפולה אסורה לפי נוהלי הבונקר.</p>
+      ${gridHTML(G.tpl.cells, null, {fixed: fixedOk, pend: B.pend})}
+      <p class="hint">עד 3 חסימות קבועות מאושרות אוטומטית.</p>
+      ${B.pend.length ? `<div class="alert sw">${B.pend.length === 1 ? "חסימה אחת" : B.pend.length + " חסימות"} מעבר ל־3 מחכות לאישור של ניצן. עד האישור הן נחשבות "מעדיף שלא".</div>` : ""}</div>
+    <div class="card"><h3>העדפות קבועות</h3><p class="hint">כל שומר עושה 5 משמרות בשבוע עם 2 ימי חופש. משמרת כפולה אסורה לפי נוהלי הבונקר.</p>
       <label class="f">לילות<select id="pf_np">${[[-1,"מעדיף כמה שפחות לילות"],[0,"ניטרלי"],[1,"מעדיף לילות"]].map(([v,l]) => `<option value="${v}"${P.nightPref == v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
       <label class="f">מקסימום לילות בשבוע<select id="pf_n">${[0,1,2,3].map(v => `<option${P.maxN == v ? " selected" : ""}>${v}</option>`).join("")}</select></label>
       <label class="f">הערה כללית על הסידור (לא חובה)<textarea id="pf_note" placeholder="למשל: מאוד נוח לי משמרות צהריים">${esc(P.note || "")}</textarea></label>
@@ -991,10 +997,10 @@ async function makeLink(n){
   GDOCS[n] = {token: tok, name: n}; return tok;
 }
 function effCells(g, ws){
-  const tpl = (g.tpl && g.tpl.cells) || {}, ok = g.tplOk || {};
-  const base = {}; Object.entries(tpl).forEach(([k, v]) => base[k] = (v === 3 && !ok[k]) ? 2 : v);   // unapproved fixed block = prefer not
   const wk = g.cons && g.cons[iso(ws)];
-  return wk ? Object.assign({}, wk.cells) : base;
+  const cells = Object.assign({}, wk ? wk.cells : ((g.tpl && g.tpl.cells) || {}));
+  blockSplit(cells, g.tplOk, wk ? (g.consOk || {})[iso(ws)] : false).pend.forEach(k => cells[k] = 2);   // waiting for Nitzan = prefer not
+  return cells;
 }
 function schedule(ws, post, people, opt){
   // people: [{n, kind, cap, cells, prof, led, lastEnd}]
@@ -1091,9 +1097,12 @@ function viewAdmin(){
   if (aTab === "team") {
     const row = (n, kind) => { const g = GDOCS[n] || {}, ws = iso(W[0]);
       const st = [(g.push || []).length ? "🔔" : "", g.verified ? "✓ אומת" : "", g.tpl && Object.keys(g.tpl.cells || {}).length ? "✓ תבנית" : "", g.cons && g.cons[ws] && g.cons[ws].at ? "✓ אילוצים " + dm(W[0]) : "", WEEKS.next && g.conf && g.conf[DATA.next.week_start] ? "✓ אישר" : ""].filter(Boolean);
-      const pend = g.tpl ? Object.keys(g.tpl.cells || {}).filter(k => g.tpl.cells[k] === 3 && !(g.tplOk || {})[k]) : [];
+      const lbl = ks => ks.map(k => DAYN[k.split("-")[0]] + " " + SH[k.split("-")[1]]).join(", ");
+      const pend = g.tpl ? blockSplit(g.tpl.cells || {}, g.tplOk, false).pend : [];
+      const wpend = W.map(w => { const c = g.cons && g.cons[iso(w)]; return c ? [w, blockSplit(c.cells, g.tplOk, (g.consOk || {})[iso(w)]).pend, c.reasons] : [w, [], ""]; }).filter(x => x[1].length);
       return `<li><div class="s">${esc(n)} <small style="color:var(--muted)">${kind}</small><span>${st.length ? st.join(" · ") : (g.token ? "עוד לא מילא" : "אין קישור")}</span>${g.prof && g.prof.note ? `<span>💬 ${esc(g.prof.note)}</span>` : ""}
-        ${pend.length ? `<span class="warn">חסימה קבועה לאישור: ${pend.map(k => DAYN[k.split("-")[0]] + " " + SH[k.split("-")[1]]).join(", ")} <button class="mebtn" data-appr="${esc(n)}">אשר</button></span>` : ""}</div>
+        ${pend.length ? `<span class="warn">חסימה קבועה רביעית ומעלה: ${lbl(pend)} <button class="mebtn" data-appr="${esc(n)}">אשר</button></span>` : ""}
+        ${wpend.map(([w, ks, why]) => `<span class="warn">שבוע ${dm(w)}, חסימה רביעית ומעלה: ${lbl(ks)}${why ? ` · "${esc(why)}"` : ""} <button class="mebtn" data-apw="${esc(n)}|${iso(w)}">אשר</button></span>`).join("")}</div>
         ${g.token ? `<a class="cal" target="_blank" rel="noopener" href="${waLink(`היי ${first(n)} 👋\nזה הקישור האישי שלך לאפליקציית הבונקר: אילוצים, התבנית השבועית שלך ואישור משמרות.\n${linkFor(g.token)}\nהקישור אישי, אל תעביר אותו.`)}">שלח</a><button class="cal" data-cpl="${esc(n)}">העתק</button>` : `<button class="cal" data-mk="${esc(n)}">צור קישור</button>`}
         <button class="cal" data-kind="${esc(n)}">${kind === "קבוע" ? "← מתגבר" : "← קבוע"}</button></li>`; };
     const pm = Object.entries(ADOC.pendingManual || {});
@@ -1135,6 +1144,9 @@ function viewAdmin(){
   view.querySelectorAll("[data-pmno]").forEach(b => b.onclick = async () => { delete ADOC.pendingManual[b.dataset.pmno]; await saveAdmin(); viewAdmin(); });
   view.querySelectorAll("[data-appr]").forEach(b => b.onclick = async () => { const g = GDOCS[b.dataset.appr]; g.tplOk = g.tplOk || {};
     Object.keys(g.tpl.cells).forEach(k => { if (g.tpl.cells[k] === 3) g.tplOk[k] = true; });
+    const {token, ...doc} = g; try { await fsSet("guards/" + token, doc); toast("אושר"); } catch(e) { toast("לא נשמר"); } viewAdmin(); });
+  view.querySelectorAll("[data-apw]").forEach(b => b.onclick = async () => { const [n, w] = b.dataset.apw.split("|"), g = GDOCS[n];
+    g.consOk = g.consOk || {}; g.consOk[w] = true;
     const {token, ...doc} = g; try { await fsSet("guards/" + token, doc); toast("אושר"); } catch(e) { toast("לא נשמר"); } viewAdmin(); });
   view.querySelectorAll("[data-kind]").forEach(b => b.onclick = () => { const n = b.dataset.kind; ADOC.team = {core: teamCore(ADOC).slice(), floaters: teamFloaters(ADOC).slice()};
     if (ADOC.team.core.includes(n)) { ADOC.team.core = ADOC.team.core.filter(x => x !== n); ADOC.team.floaters.push(n); } else { ADOC.team.floaters = ADOC.team.floaters.filter(x => x !== n); ADOC.team.core.push(n); }
