@@ -358,7 +358,8 @@ function viewMine(){
       <div class="s"><i class="dot" style="background:var(${x.color})"></i> ${SH[x.s]} · ${esc(x.post)}<span>${hhmm(x.start)}-${hhmm(x.end)}${typeof x.cell!=="string"?" · "+esc(x.cell.m):""}</span>${warn.has(x)?`<div class="warn">⚠ ${warn.get(x)}</div>`:""}</div>
       <div style="display:flex;flex-direction:column;gap:4px"><button type="button" class="cal" data-addcal="${list.indexOf(x)}">+ ליומן</button>${x.end > new Date() ? `<button type="button" class="cal" data-cant="${list.filter(y => y.end > new Date()).indexOf(x)}">לא יכול</button>` : ""}</div></li>`).join("")
     : `<li class="empty">אין לך משמרות השבוע.</li>`;
-  h += `</ul></div>${list.length ? `<button type="button" class="btn sec" id="mine_ics">📅 הוסף את כל המשמרות שלי ליומן</button>` : ""}<p class="hint">"+ ליומן" מוסיף משמרת אחת. "לא יכול" מציג מי לשאול, לפי הסדר.</p>`;
+  const canSub = DATA.calLive && TOKEN && GDOC;
+  h += `</ul></div>${canSub ? `<button type="button" class="btn ${GDOC.prof && GDOC.prof.calSub ? "sec" : "pri"}" id="mine_sub">🔄 ${GDOC.prof && GDOC.prof.calSub ? "✓ היומן מסונכרן" : "סנכרון אוטומטי ליומן"}</button>` : ""}${list.length ? `<button type="button" class="btn sec" id="mine_ics">📅 הוסף את כל המשמרות שלי ליומן</button>` : ""}<p class="hint">"+ ליומן" מוסיף משמרת אחת. "לא יכול" מציג מי לשאול, לפי הסדר.</p>`;
   view.innerHTML = h;
   wireMine();
 }
@@ -891,11 +892,33 @@ function addToCalendar(list){
   sh.querySelectorAll("a.opt").forEach(a => a.addEventListener("click", () => { a.style.opacity = ".45"; a.querySelector(".cal").textContent = "✓ נפתח"; }));
   sh.querySelector("#calx").onclick = () => sh.remove(); sh.onclick = e => { if (e.target === sh) sh.remove(); };
 }
+// ---- automatic sync: each guard's own calendar feed, subscribed once (no invites from anyone's calendar) ----
+let FEED = "";
+async function feedUrl(){
+  if (FEED || !TOKEN) return FEED;
+  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(TOKEN + "|cal"));
+  FEED = "https://bz-shifts.web.app/c/" + [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32) + ".ics";
+  return FEED;
+}
+function subLink(app, url){
+  const web = url.replace(/^https:/, "webcal:");
+  if (app === "google") return "https://calendar.google.com/calendar/render?cid=" + encodeURIComponent(web);
+  if (app === "apple") return web;
+  return "https://outlook.live.com/calendar/0/addfromweb?url=" + encodeURIComponent(url) + "&name=" + encodeURIComponent("בונקר צנובר");
+}
+async function subscribeCal(){
+  const app = calApp(); if (!app) return chooseCalApp(subscribeCal);
+  const url = await feedUrl(); if (!url) { toast("קודם אמת את עצמך ב־⚙ הגדרות"); return; }
+  if (GDOC) { GDOC.prof = GDOC.prof || {}; GDOC.prof.calSub = new Date().toISOString(); saveGuard(); }
+  const link = subLink(app, url);
+  if (app === "apple") location.href = link; else window.open(link, "_blank", "noopener");
+}
 function addAllToCalendar(){
   addToCalendar([...WEEKS.cur.slots, ...((WEEKS.next || {}).slots || [])].filter(x => same(x.who, me) && x.end > new Date()).sort((a, b) => a.start - b.start));
 }
 function wireMine(){
   const mi = document.getElementById("mine_ics"); if (mi) mi.onclick = addAllToCalendar;
+  const ms = document.getElementById("mine_sub"); if (ms) ms.onclick = subscribeCal;
   const ml = myShifts(me);
   view.querySelectorAll("[data-addcal]").forEach(b => b.onclick = () => addToCalendar([ml[+b.dataset.addcal]]));
   const po = document.getElementById("pushon"); if (po) po.onclick = enablePush;
@@ -1052,9 +1075,9 @@ function viewSettings(){
   if (ok) { const P = GDOC.prof = GDOC.prof || {};
     h += `<div class="card"><h3>יומן</h3>
       <label class="f">אני מתנהל ביומן של<select id="st_calapp"><option value="">בחר…</option>${CAL_APPS.map(([v, l]) => `<option value="${v}"${calApp() === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
-      <label class="f">המייל שלך<input type="text" id="st_mail" inputmode="email" autocomplete="email" dir="ltr" value="${esc(P.email || "")}" placeholder="name@gmail.com"></label>
-      <button type="button" class="opt" id="st_cal" aria-pressed="${!!P.cal}"><div class="s"><b>${P.cal ? "✓" : "☐"} לשלוח את המשמרות שלי ליומן אוטומטית</b><span>כל משמרת מגיעה ליומן כהזמנה, ומתעדכנת כשיש החלפה.</span></div></button>
-      ${DATA.calLive ? "" : `<p class="hint">הסנכרון האוטומטי ייכנס לפעולה בקרוב. המייל וההסכמה שלך כבר נשמרים.</p>`}
+      ${DATA.calLive ? `<button type="button" class="btn pri" id="st_sub">🔄 ${GDOC.prof.calSub ? "✓ מסונכרן · לחבר שוב" : "סנכרון אוטומטי ליומן"}</button>
+        <p class="hint">פעם אחת. מכאן כל משמרת, החלפה וביטול מתעדכנים ביומן שלך לבד. גוגל מרענן כל כמה שעות, האייפון מהר יותר. שום הזמנה לא נשלחת מאף יומן.</p>
+        <button type="button" class="cal" id="st_copyfeed">העתק כתובת היומן</button>` : `<p class="hint">סנכרון אוטומטי ייפתח בקרוב.</p>`}
       <button type="button" class="btn sec" id="st_ics">הוסף עכשיו את כל המשמרות שלי ליומן</button>
       <p class="hint" id="savest">${esc(saveMsg)}</p></div>`; }
   h += `<div class="card"><h3>האפליקציה בטלפון</h3>${ENV.standalone ? `<span class="pill ok">✓ מותקנת במסך הבית</span>` : `<button type="button" class="btn sec" id="st_inst">📲 שמור את האפליקציה בטלפון</button>`}</div>`;
@@ -1066,8 +1089,8 @@ function viewSettings(){
   if (q("st_inst")) q("st_inst").onclick = installBot;
   if (q("pushon")) q("pushon").onclick = enablePush;
   if (q("pinst")) q("pinst").onclick = installBot;
-  if (q("st_mail")) q("st_mail").oninput = e => { GDOC.prof.email = e.target.value.trim(); saveGuard(); };
-  if (q("st_cal")) q("st_cal").onclick = () => { const P = GDOC.prof; if (!P.cal && !/^\S+@\S+\.\S+$/.test(P.email || "")) { toast("קודם מייל תקין"); return; } P.cal = !P.cal; saveGuard(); viewSettings(); };
+  if (q("st_sub")) q("st_sub").onclick = subscribeCal;
+  if (q("st_copyfeed")) q("st_copyfeed").onclick = async () => copy(await feedUrl());
   if (q("st_ics")) q("st_ics").onclick = addAllToCalendar;
   if (q("st_calapp")) q("st_calapp").onchange = e => { setCalApp(e.target.value); toast("נשמר"); };
 }
@@ -1229,11 +1252,11 @@ function viewAdmin(){
     const sel = (k, cur) => `<select data-pn="${esc(k)}" style="padding:4px 6px;font-size:14px;width:auto;max-width:140px"><option value="">${cur ? "" : "? לא מזוהה"}</option>${names.map(n => `<option${n === cur ? " selected" : ""}>${esc(n)}</option>`).join("")}</select>`;
     const ok = v => v ? `<span style="color:var(--good);font-weight:700">✓</span>` : `<span style="color:var(--faint)">·</span>`;
     act.sort(([, a], [, b]) => (!!a.name - !!b.name) || a.name.localeCompare(b.name, "he"));
-    h += `<div class="card"><div class="stats s4"><div><b>${act.length}</b><span>בקבוצות</span></div><div><b>${cnt(p => p.app)}</b><span>נרשמו לאפליקציה</span></div><div><b>${cnt(p => p.verified)}</b><span>אימתו טלפון</span></div><div><b>${cnt(p => p.email)}</b><span>הכניסו מייל</span></div></div>
+    h += `<div class="card"><div class="stats s4"><div><b>${act.length}</b><span>בקבוצות</span></div><div><b>${cnt(p => p.app)}</b><span>נרשמו לאפליקציה</span></div><div><b>${cnt(p => p.verified)}</b><span>אימתו טלפון</span></div><div><b>${cnt(p => p.cal)}</b><span>סנכרנו יומן</span></div></div>
       <p class="hint">${ROSTER ? "כל מי שנמצא ב־4 קבוצות הבונקר, לפי מספר טלפון. מתעדכן לבד מהוואטסאפ. עודכן " + esc(ROSTER.updated.replace("T", " ")) + "." : "הרשימה עוד לא נבנתה."} "?" = מספר שהבוט לא זיהה: בחר שם והוא יתעדכן בריצה הבאה.</p></div>
-      <div class="card flush"><div class="tw"><table><thead><tr><th style="text-align:start">שומר</th><th>טלפון</th><th>קבוצות</th><th>נרשם</th><th>אימת</th><th>מייל</th><th>🔔</th></tr></thead><tbody>
+      <div class="card flush"><div class="tw"><table><thead><tr><th style="text-align:start">שומר</th><th>טלפון</th><th>קבוצות</th><th>נרשם</th><th>אימת</th><th>יומן</th><th>🔔</th></tr></thead><tbody>
       ${act.map(([k, p]) => `<tr><th style="font-weight:600">${sel(k, p.name)}${p.wa && p.wa !== p.name ? `<small>בוואטסאפ: ${esc(p.wa)}</small>` : ""}</th><td style="direction:ltr;font-variant-numeric:tabular-nums;font-size:13px">${ph(k)}</td>
-        <td title="${esc(p.groups.join(" · "))}">${p.groups.length}/4</td><td>${ok(p.app)}</td><td>${ok(p.verified)}</td><td title="${esc(p.email)}">${ok(p.email)}${p.cal ? "<small>יומן</small>" : ""}</td><td>${p.push ? "🔔" : ok(0)}</td></tr>`).join("")}
+        <td title="${esc(p.groups.join(" · "))}">${p.groups.length}/4</td><td>${ok(p.app)}</td><td>${ok(p.verified)}</td><td>${ok(p.cal)}</td><td>${p.push ? "🔔" : ok(0)}</td></tr>`).join("")}
       </tbody></table></div></div>
       ${gone.length ? `<div class="card"><h3>יצאו מהקבוצות</h3>${gone.map(([k, p]) => `<p class="hint">${esc(p.name || p.wa || ph(k))} · ${ph(k)} · יצא ${esc(p.left.slice(8, 10) + "." + p.left.slice(5, 7))}</p>`).join("")}</div>` : ""}`;
   } else if (aTab === "plan") {
