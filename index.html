@@ -704,7 +704,7 @@ function planWeeks(){   // the next two weeks whose constraints are still open
 const STATES = ["", "↑", "↓", "⛔"];               // 0 neutral, 1 prefer, 2 prefer not, 3 blocked
 const STATE_TXT = ["ניטרלי", "מעדיף", "מעדיף שלא", "חסום"];
 
-// ---- fairness ledger (what actually happened, from the start-of-shift reports) ----
+// ---- fairness ledger: the shifts each guard was given in the published rosters (Nitzan, 20.11) ----
 function ledgerOf(n){
   const rows = LED.people[canonN(n)] || {};
   const t = {sh: 0, nt: 0, fri: 0, sat: 0, w: 0, three: 0, last3: -1};
@@ -820,9 +820,9 @@ function mineExtras(){
   const L = ledgerOf(me), core = teamCore(null).filter(n => !same(n, me));
   const avg = k => core.length ? (core.reduce((a, n) => a + ledgerOf(n)[k], 0) / core.length) : 0;
   let h = "";
-  if (LED.weeks.length) h += `<div class="card"><h3>ספר ההוגנות שלי · ${LED.weeks.length} שבועות, לפי מה שדווח בפועל</h3>
+  if (LED.weeks.length) h += `<div class="card"><h3>ספר ההוגנות שלי · ${LED.weeks.length} שבועות, לפי הסידור שפורסם</h3>
     <div class="stats s4"><div><b>${L.sh}</b><span>משמרות<br>צוות: ${avg("sh").toFixed(1)}</span></div><div><b>${L.nt}</b><span>לילות<br>צוות: ${avg("nt").toFixed(1)}</span></div><div><b>${L.fri}</b><span>שישי<br>צוות: ${avg("fri").toFixed(1)}</span></div><div><b>${L.sat}</b><span>שבת<br>צוות: ${avg("sat").toFixed(1)}</span></div></div>
-    <p class="hint">שבת = משישי ערב עד שבת ערב. "צוות" = ממוצע הצוות הקבוע של אלירן. השבוע הנוכחי נספר עד עכשיו.</p></div>`;
+    <p class="hint">שבת = משישי ערב עד שבת ערב. "צוות" = ממוצע הצוות הקבוע של אלירן. נספר מה שקיבלת בסידור, גם אם החלפת אחר כך.</p></div>`;
   h += pushCard();
   if (FBC && !TOKEN && canVerify()) h += `<div class="card"><h3>חשבון אישי</h3><p class="hint">אימות חד פעמי בוואטסאפ: האילוצים והאישורים שלך יישמרו, ותקבל התראות.</p><button type="button" class="btn pri" id="vstart">אמת אותי בוואטסאפ</button></div>`;
   if (FBC && TOKEN && WEEKS.next && GDOC) {
@@ -1124,7 +1124,7 @@ function viewAdmin(){
     const rows = [...core, ...flo].map(n => [n, ledgerOf(n), flo.includes(n)]);
     h += `<div class="card flush"><div class="tw"><table><thead><tr><th style="text-align:start;width:96px">שומר</th><th>משמרות</th><th>לילות</th><th>שישי</th><th>שבת</th><th>3 ימי חופש</th></tr></thead><tbody>
       ${rows.map(([n, L, f]) => `<tr><th>${esc(n)}${f ? "<small>מתגבר</small>" : ""}</th><td>${L.sh}</td><td>${L.nt}</td><td>${L.fri}</td><td>${L.sat}</td><td>${L.three} מתוך ${L.w}</td></tr>`).join("")}</tbody></table></div></div>
-      <p class="hint">${LED.weeks.length} שבועות (${LED.weeks.map(w => dm(new Date(w + "T00:00:00"))).join(", ")}), לפי מי שדיווח בתחילת המשמרת. השבוע הנוכחי עד עכשיו.</p>`;
+      <p class="hint">${LED.weeks.length} שבועות (${LED.weeks.map(w => dm(new Date(w + "T00:00:00"))).join(", ")}), לפי הסידור שפורסם, לפני החלפות.</p>`;
   }
   view.innerHTML = h; wireAdminTabs();
   view.querySelectorAll("[data-mk]").forEach(b => b.onclick = async () => { b.textContent = "יוצר…"; try { await makeLink(b.dataset.mk); } catch(e) { toast("לא נוצר"); } viewAdmin(); });
