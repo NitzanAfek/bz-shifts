@@ -246,7 +246,7 @@ function pickMe(){
   sh.querySelector("#closeMe").onclick = () => sh.remove();
   sh.onclick = e => { if (e.target === sh) sh.remove(); };
 }
-document.getElementById("mebtn").onclick = pickMe;
+document.getElementById("mebtn").onclick = () => { tab = "settings"; render(); window.scrollTo(0, 0); };
 
 // ---------- views ----------
 // Home-screen alerts live for 24 hours from the WhatsApp message behind them; the table keeps its markings.
@@ -254,10 +254,10 @@ const fresh = t => { const ts = (DATA.alertTs || {})[t]; return !!ts && Date.now
 function viewNow(){
   const now = new Date();
   let h = "";
-  const recent = DATA.applied.filter(fresh), liveNew = (DATA.liveChanges || []).filter(fresh), flagsNew = DATA.flags.filter(fresh);
-  if (recent.length) h += `<div class="alert sw"><b>${recent.length === 1 ? "החלפה חדשה" : recent.length + " החלפות חדשות"}</b> מהקבוצה, כבר בטבלה (בכתום).<ul>${recent.map(a=>`<li>${esc(a)}</li>`).join("")}</ul></div>`;
-  if (liveNew.length) h += `<div class="alert lv"><b>שינויים מהדיווח בשטח</b> (מסומנים בירוק)<ul>${liveNew.map(c=>`<li>${esc(c)}</li>`).join("")}</ul></div>`;
-  if (!recent.length && !liveNew.length && !flagsNew.length) h += `<span class="pill ok">✓ אין עדכונים חדשים ב־24 השעות האחרונות</span>`;
+  const aboutMe = t => !!me && t.split(/[\s,←:()·]+/).some(w => w.length > 1 && same(w, me));
+  const recent = DATA.applied.filter(fresh).filter(aboutMe), liveNew = (DATA.liveChanges || []).filter(fresh).filter(aboutMe), flagsNew = [];
+  if (recent.length) h += `<div class="alert sw"><b>${recent.length === 1 ? "החלפה שנוגעת אליך" : recent.length + " החלפות שנוגעות אליך"}</b>, כבר בטבלה (בכתום).<ul>${recent.map(a=>`<li>${esc(a)}</li>`).join("")}</ul></div>`;
+  if (liveNew.length) h += `<div class="alert lv"><b>שינוי במשמרת שלך לפי הדיווח בשטח</b><ul>${liveNew.map(c=>`<li>${esc(c)}</li>`).join("")}</ul></div>`;
   if (flagsNew.length) h += `<div class="alert bad"><b>לבדיקה מול ראש הצוות</b> (לא עודכן בטבלה)<ul>${flagsNew.map(f=>`<li>${esc(f)}</li>`).join("")}</ul></div>`;
 
   const on = posts.map(p => SLOTS.find(x => x.post === p.name && x.start <= now && now < x.end));
@@ -376,6 +376,7 @@ function swapText(){
 }
 // Why a hand-picked replacement may not fit this shift ("" = fine)
 function clashOf(n, x, given){   // given: the replacement's shift that comes back to me, so it no longer counts
+  if (availOf(n, x) === 3) return `${n} סימן "חסום" למשמרת הזאת`;
   const mine = shiftsW(n).filter(y => y !== given);
   if (mine.some(y => y.day === x.day)) return `${n} כבר עובד ב${DAYN[x.day]}. אפשר להחליף איתו את המשמרת הזאת שלו בשלב 3`;
   const gaps = mine.map(y => y.end <= x.start ? (x.start - y.end)/36e5 : y.start >= x.end ? (y.start - x.end)/36e5 : 0);
@@ -389,6 +390,8 @@ function candidates(x){
   return PP.filter(n => !same(n, me)).map(n => {
     const mine = shiftsW(n);
     if (mine.some(y => y.day === x.day)) return null;                 // already works that day
+    const av = availOf(n, x);
+    if (av === 3) return null;                                         // blocked that shift: never a candidate
     const gapBefore = Math.min(...mine.filter(y => y.end <= x.start).map(y => (x.start - y.end)/36e5), 99);
     const gapAfter  = Math.min(...mine.filter(y => y.start >= x.end).map(y => (y.start - x.end)/36e5), 99);
     const rest = Math.min(gapBefore, gapAfter);
@@ -397,6 +400,8 @@ function candidates(x){
     let score = 0;
     const offRow = WK_().P.find(p => p.name === postN)?.rows[4][2][x.day];
     if (offRow && nameOf(offRow).split(", ").some(o => same(o, n))) { why.push("ביום חופש באותו יום"); score += 3; }
+    if (av === 1) { why.push("סימן \"מעדיף\" את המשמרת הזאת"); score += 5; }
+    if (av === 2) { why.push("סימן \"מעדיף שלא\", אבל אפשרי"); score -= 3; }
     if (postN === x.post) { why.push("מכיר את העמדה"); score += 3; }
     if (mine.length < avg - 0.4) { why.push(`רק ${mine.length} משמרות באותו שבוע`); score += 2; }
     if (x.s === 3) { const nt = mine.filter(y=>y.s===3).length; if (nt === 0) { why.push("אין לו לילות באותו שבוע"); score += 2; } }
@@ -646,6 +651,8 @@ function viewPlan(){
 // the scheduler has one doc admin/{secret}. No sign-in. Without DATA.fb everything falls back to WhatsApp text.
 // =====================================================================================================
 const DIR = DATA.dir || {people: [], rotation: []};
+// the other guard's own preference for one shift (0 none, 1 prefer, 2 prefer not, 3 blocked); states only, no notes
+const availOf = (n, x) => (((DATA.avail || {})[canonN(n)] || {})[iso(x.base || W0)] || {})[x.day + "-" + x.s] || 0;
 const LED = DATA.ledger || {weeks: [], people: {}, teamPost: {}, complete: {}};
 const FBC = DATA.fb || null;
 const FS = FBC ? `https://firestore.googleapis.com/v1/projects/${FBC.projectId}/databases/(default)/documents` : "";
@@ -829,8 +836,7 @@ function mineExtras(){
   if (LED.weeks.length) h += `<div class="card"><h3>ספר ההוגנות שלי · ${LED.weeks.length} שבועות, לפי הסידור שפורסם</h3>
     <div class="stats s4"><div><b>${L.sh}</b><span>משמרות<br>צוות: ${avg("sh").toFixed(1)}</span></div><div><b>${L.nt}</b><span>לילות<br>צוות: ${avg("nt").toFixed(1)}</span></div><div><b>${L.fri}</b><span>שישי<br>צוות: ${avg("fri").toFixed(1)}</span></div><div><b>${L.sat}</b><span>שבת<br>צוות: ${avg("sat").toFixed(1)}</span></div></div>
     <p class="hint">שבת = משישי ערב עד שבת ערב. "צוות" = ממוצע הצוות הקבוע של אלירן. נספר מה שקיבלת בסידור, גם אם החלפת אחר כך.</p></div>`;
-  h += pushCard();
-  if (FBC && !TOKEN && canVerify()) h += `<div class="card"><h3>חשבון אישי</h3><p class="hint">אימות חד פעמי בוואטסאפ: האילוצים והאישורים שלך יישמרו, ותקבל התראות.</p><button type="button" class="btn pri" id="vstart">אמת אותי בוואטסאפ</button></div>`;
+  if (FBC && !TOKEN && canVerify()) h += `<p class="hint">כדי לשמור אילוצים ולקבל התראות: ⚙ הגדרות ← אמת אותי בוואטסאפ.</p>`;
   if (FBC && TOKEN && WEEKS.next && GDOC) {
     const k = DATA.next.week_start, ok = (GDOC.conf || {})[k];
     h += `<div class="card"><h3>המשמרות שלך לשבוע ${dm(WEEKS.next.base)}</h3>
@@ -861,6 +867,7 @@ function poolFor(x, who){
     if (mine.some(y => y.day === x.day)) continue;
     const gap = Math.min(...mine.map(y => y.end <= x.start ? (x.start - y.end) / 36e5 : y.start >= x.end ? (y.start - x.end) / 36e5 : 0), 99);
     if (gap < 8) continue;
+    const av = availOf(n, x); if (av === 3) continue;
     const L = ledgerOf(n);
     let tier = 3, why = [];
     if (P && P.team === myTeam && P.type === "core") { tier = 1; why.push("מהצוות, ביום חופש"); }
@@ -869,7 +876,8 @@ function poolFor(x, who){
     if (mine.length >= 5) { why.push("כבר 5 משמרות: רק בהסכמה"); tier = 5; }
     why.push(`${mine.length} משמרות השבוע`); why.push(gap >= 24 ? "לא צמוד למשמרת אחרת" : `${Math.round(gap)} ש׳ מנוחה`);
     if (x.s === 3) why.push(`${L.nt} לילות ב־${LED.weeks.length} שבועות`);
-    out.push({n, tier, why, score: tier * 100 + mine.length * 10 + (x.s === 3 ? L.nt : L.sh / 4)});
+    if (av === 1) why.unshift("ביקש את המשמרת הזאת"); if (av === 2) why.push("סימן \"מעדיף שלא\"");
+    out.push({n, tier, why, score: tier * 100 + mine.length * 10 + (x.s === 3 ? L.nt : L.sh / 4) + (av === 1 ? -60 : av === 2 ? 30 : 0)});
   }
   return out.sort((a, b) => a.score - b.score);
 }
@@ -973,6 +981,45 @@ async function enablePush(){
   } catch(e) { toast("לא הצלחתי להפעיל התראות"); }
 }
 
+
+// ---- settings: everything a guard sets once, in one place ----
+function icsFor(list){
+  const f = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const ev = list.map(x => ["BEGIN:VEVENT", "UID:bz-" + f(x.start) + "-" + x.post.replace(/\W/g, "") + "@bz-shifts", "DTSTAMP:" + f(new Date()),
+    "DTSTART:" + f(x.start), "DTEND:" + f(x.end), "SUMMARY:צנובר · " + x.post + " · " + SH[x.s], "END:VEVENT"].join("\r\n"));
+  return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//bz-shifts//HE", ...ev, "END:VCALENDAR"].join("\r\n");
+}
+function viewSettings(){
+  if (TOKEN && FBC && gState === "idle") loadGuard();
+  let h = `<div class="card"><h2>הגדרות</h2><p class="hint">כל מה שמגדירים פעם אחת. האילוצים והתבנית השבועית נמצאים בלשונית "אילוצים".</p></div>`;
+  const ok = TOKEN && FBC && gState === "ok";
+  h += `<div class="card"><h3>מי אני</h3><div class="opt"><div class="s"><b>${me ? esc(me) : "עוד לא נבחר"}</b><span>${ok ? (GDOC.verified ? "✓ אומת בוואטסאפ" : "✓ מחובר אישית") : "לא מאומת: האפליקציה לא שומרת אילוצים ולא שולחת התראות"}</span></div><button type="button" class="cal" id="st_name">${me ? "שנה" : "בחר"}</button></div>
+    ${FBC && !TOKEN && canVerify() && me ? `<button type="button" class="btn pri" id="st_verify">אמת אותי בוואטסאפ</button>` : ""}</div>`;
+  h += pushCard();
+  if (ok) { const P = GDOC.prof = GDOC.prof || {};
+    h += `<div class="card"><h3>יומן גוגל</h3>
+      <label class="f">המייל שלך<input type="text" id="st_mail" inputmode="email" autocomplete="email" dir="ltr" value="${esc(P.email || "")}" placeholder="name@gmail.com"></label>
+      <button type="button" class="opt" id="st_cal" aria-pressed="${!!P.cal}"><div class="s"><b>${P.cal ? "✓" : "☐"} לשלוח את המשמרות שלי ליומן אוטומטית</b><span>כל משמרת מגיעה ליומן כהזמנה, ומתעדכנת כשיש החלפה.</span></div></button>
+      ${DATA.calLive ? "" : `<p class="hint">הסנכרון האוטומטי ייכנס לפעולה בקרוב. המייל וההסכמה שלך כבר נשמרים.</p>`}
+      <button type="button" class="btn sec" id="st_ics">הוסף עכשיו את כל המשמרות שלי ליומן</button>
+      <p class="hint" id="savest">${esc(saveMsg)}</p></div>`; }
+  h += `<div class="card"><h3>האפליקציה בטלפון</h3>${ENV.standalone ? `<span class="pill ok">✓ מותקנת במסך הבית</span>` : `<button type="button" class="btn sec" id="st_inst">📲 שמור את האפליקציה בטלפון</button>`}</div>`;
+  if (ADMIN && FBC) h += `<div class="card"><h3>ניהול</h3><p class="hint">אתה המשבץ. בלשונית "שיבוץ": הצוות והמתגברים, טיוטה, חירום והוגנות.</p></div>`;
+  view.innerHTML = h;
+  const q = id => document.getElementById(id);
+  q("st_name").onclick = pickMe;
+  if (q("st_verify")) q("st_verify").onclick = () => verifySheet(canonN(me));
+  if (q("st_inst")) q("st_inst").onclick = installBot;
+  if (q("pushon")) q("pushon").onclick = enablePush;
+  if (q("pinst")) q("pinst").onclick = installBot;
+  if (q("st_mail")) q("st_mail").oninput = e => { GDOC.prof.email = e.target.value.trim(); saveGuard(); };
+  if (q("st_cal")) q("st_cal").onclick = () => { const P = GDOC.prof; if (!P.cal && !/^\S+@\S+\.\S+$/.test(P.email || "")) { toast("קודם מייל תקין"); return; } P.cal = !P.cal; saveGuard(); viewSettings(); };
+  if (q("st_ics")) q("st_ics").onclick = () => {
+    const list = [...WEEKS.cur.slots, ...((WEEKS.next || {}).slots || [])].filter(x => same(x.who, me) && x.end > new Date()).sort((a, b) => a.start - b.start);
+    if (!list.length) { toast("אין משמרות קרובות"); return; }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([icsFor(list)], {type: "text/calendar"})); a.download = "bunker-shifts.ics"; document.body.appendChild(a); a.click(); a.remove();
+    toast(list.length + " משמרות נשלחו ליומן"); };
+}
 // ---- scheduler (Nitzan): team, draft, emergency, ledger ----
 let ADOC = null, aState = "idle", aTab = store.get("aTab", "team"), GDOCS = {}, draft = null;
 async function loadAdmin(force){
@@ -1107,13 +1154,23 @@ function viewAdmin(){
         <button class="cal" data-kind="${esc(n)}">${kind === "קבוע" ? "← מתגבר" : "← קבוע"}</button></li>`; };
     const pm = Object.entries(ADOC.pendingManual || {});
     if (pm.length) h += `<div class="card"><h3>ממתינים לאישור שלך</h3><p class="hint">ביקשו להצטרף, ולבוט אין את הוואטסאפ שלהם. אשר רק אם אתה בטוח שזה הם.</p>${pm.map(([t, n]) => `<div class="opt"><div class="s"><b>${esc(n)}</b></div><button class="cal" data-pmok="${t}">אשר</button><button class="cal" data-pmno="${t}">דחה</button></div>`).join("")}</div>`;
+    const TL = [...new Set(DIR.people.map(p => p.team).filter(Boolean))], AL = ADOC.alloc = ADOC.alloc || {};
+    const need = 28 - core.length * 5, given = flo.reduce((a, n) => a + ((AL[n] || {})[TEAM_LABEL] || 0), 0);
     h += `<div class="card flush"><ul class="list">${core.map(n => row(n, "קבוע")).join("")}${flo.map(n => row(n, "מתגבר")).join("")}</ul></div>
-      <div class="card"><label class="f">הוסף שומר לרשימה<select id="addg"><option value="">בחר…</option>${DIR.people.filter(p => !p.left && !core.includes(p.n) && !flo.includes(p.n)).map(p => `<option>${esc(p.n)}</option>`).join("")}</select></label>
+      <div class="card"><h3>מתגברים: כמה משמרות בשבוע לכל צוות</h3>
+      <p class="hint">הצוות שלך צריך <b>${need}</b> משמרות ממתגברים בשבוע (28 פחות ${core.length} קבועים × 5). מוקצה עכשיו: <b>${given}</b>.${given < need ? " חסרות " + (need - given) + "." : ""}</p>
+      <div class="tw"><table><thead><tr><th style="text-align:start;width:96px">מתגבר</th>${TL.map(t => `<th>${esc(t)}</th>`).join("")}<th>סה״כ</th><th></th></tr></thead><tbody>
+      ${flo.map(n => { const tot = TL.reduce((a, t) => a + ((AL[n] || {})[t] || 0), 0);
+        return `<tr><th>${esc(n)}</th>${TL.map(t => `<td><input type="number" min="0" max="5" data-al="${esc(n)}|${esc(t)}" value="${(AL[n] || {})[t] || 0}" style="width:52px;padding:6px;text-align:center"></td>`).join("")}<td${tot > 5 ? ' style="color:var(--bad);font-weight:700"' : ""}>${tot}</td><td><button class="cal" data-rmf="${esc(n)}">הסר</button></td></tr>`; }).join("")}
+      </tbody></table></div><p class="hint">מתגבר עושה עד 5 משמרות בשבוע בכל הבונקר. הטיוטה משתמשת בעמודה של הצוות שלך.</p></div>`;
+    const fresh3 = (DATA.flags || []).filter(f => { const ts = (DATA.alertTs || {})[f]; return ts && Date.now() / 1000 - ts < 3 * 86400; });
+    if (fresh3.length) h += `<div class="card"><details><summary class="hint" style="cursor:pointer">טפסי החלפה שלא נקלטו (${fresh3.length}) · 3 ימים אחרונים</summary><ul class="hint">${fresh3.map(f => `<li>${esc(f)}</li>`).join("")}</ul></details></div>`;
+    h += `<div class="card"><label class="f">הוסף שומר לרשימה<select id="addg"><option value="">בחר…</option>${DIR.people.filter(p => !p.left && !core.includes(p.n) && !flo.includes(p.n)).map(p => `<option>${esc(p.n)}</option>`).join("")}</select></label>
       <p class="hint">קבוע = 5 משמרות ו־2 ימי חופש. מתגבר = משלים את 28 המשמרות. "עוד לא מילא" אחרי שלישי 12:00 = כדאי תזכורת.</p></div>`;
   } else if (aTab === "plan") {
     const ws = W[Math.min(aWeek, 1)], post = aPost || teamPostFor(ws);
     const needed = 28 - core.length * 5;
-    flo.forEach((n, i) => { if (aCaps[n] == null) aCaps[n] = i === 0 ? Math.max(0, Math.min(5, needed)) : 0; });
+    flo.forEach(n => { if (aCaps[n] == null) aCaps[n] = ((ADOC.alloc || {})[n] || {})[TEAM_LABEL] || 0; });
     h += `<div class="card"><h3>טיוטה לשבוע</h3><div class="seg">${W.map((w, i) => `<button type="button" data-aw="${i}" aria-selected="${aWeek === i}">${dm(w)}</button>`).join("")}</div>
       <label class="f">עמדת הצוות (לפי הסבב: ${esc(teamPostFor(ws))})<select id="apost">${(DIR.rotation || []).map(p => `<option${p === post ? " selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
       <p class="hint">${core.length} קבועים × עד 5 = ${28 - needed}. חסרות <b>${Math.max(0, needed)}</b> משמרות ממתגברים.</p>
@@ -1151,6 +1208,10 @@ function viewAdmin(){
   view.querySelectorAll("[data-kind]").forEach(b => b.onclick = () => { const n = b.dataset.kind; ADOC.team = {core: teamCore(ADOC).slice(), floaters: teamFloaters(ADOC).slice()};
     if (ADOC.team.core.includes(n)) { ADOC.team.core = ADOC.team.core.filter(x => x !== n); ADOC.team.floaters.push(n); } else { ADOC.team.floaters = ADOC.team.floaters.filter(x => x !== n); ADOC.team.core.push(n); }
     saveAdmin(); viewAdmin(); });
+  let alT = null;
+  view.querySelectorAll("[data-al]").forEach(i => i.onchange = () => { const [n, t] = i.dataset.al.split("|"); ADOC.alloc[n] = ADOC.alloc[n] || {};
+    ADOC.alloc[n][t] = Math.max(0, Math.min(5, +i.value || 0)); if (t === TEAM_LABEL) aCaps[n] = ADOC.alloc[n][t]; clearTimeout(alT); alT = setTimeout(saveAdmin, 600); viewAdmin(); });
+  view.querySelectorAll("[data-rmf]").forEach(b => b.onclick = () => { const n = b.dataset.rmf; ADOC.team = {core: teamCore(ADOC).filter(x => x !== n), floaters: teamFloaters(ADOC).filter(x => x !== n)}; saveAdmin(); viewAdmin(); });
   const ag = document.getElementById("addg"); if (ag) ag.onchange = () => { if (!ag.value) return; ADOC.team = {core: teamCore(ADOC).slice(), floaters: [...teamFloaters(ADOC), ag.value]}; saveAdmin(); viewAdmin(); };
   view.querySelectorAll("[data-aw]").forEach(b => b.onclick = () => { aWeek = +b.dataset.aw; aPost = ""; draft = null; viewAdmin(); });
   const ap = document.getElementById("apost"); if (ap) ap.onchange = () => { aPost = ap.value; draft = null; };
@@ -1263,14 +1324,14 @@ if (ENV.web && !ENV.standalone) {
 document.getElementById("static").hidden = true;
 document.getElementById("tabs").hidden = false;
 document.getElementById("mebtn").hidden = false;
-const VIEWS = {now:viewNow, week:viewWeek, mine:viewMine, ask:viewSwap, cons:viewCons, plan:viewAdmin};   // 2.0: plan = the scheduler, only with the scheduler link
+const VIEWS = {now:viewNow, week:viewWeek, mine:viewMine, ask:viewSwap, cons:viewCons, plan:viewAdmin, settings:viewSettings};   // 2.0: plan = the scheduler, only with the scheduler link
 if (ADMIN && FBC) { const tb = document.getElementById("tabs"); tb.style.gridTemplateColumns = "repeat(6,1fr)";
   const b = document.createElement("button"); b.type = "button"; b.setAttribute("role", "tab"); b.dataset.t = "plan";
   b.innerHTML = `<svg viewBox="0 0 24 24"><path d="M4 20h16M6 16l4-4 3 3 5-6"/><circle cx="18" cy="9" r="1.5"/></svg>שיבוץ`; tb.appendChild(b); }
 if (tab === "plan" && !(ADMIN && FBC)) tab = "now";
 if (TOKEN && FBC) loadGuard();
 function render(){
-  document.getElementById("mebtn").textContent = me ? "אני: " + me : "מי אני?";
+  document.getElementById("mebtn").textContent = "⚙ " + (me || "הגדרות");
   document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.t === tab));
   (VIEWS[tab] || viewNow)();
 }
