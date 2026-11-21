@@ -141,6 +141,7 @@ td[data-why]{cursor:pointer}
 .legend2 .st1{color:var(--good);font-weight:700}.legend2 .st2{color:var(--swap);font-weight:700}.legend2 .st3{color:var(--bad);font-weight:700}
 .stats.s4{grid-template-columns:repeat(4,1fr)}.stats.s4 b{font-size:20px}
 td.bad{background:var(--badbg)}td small,th small{display:block}
+p.fl{margin:0;font-size:15px;line-height:1.6}p.fl .hi{color:var(--bad);font-weight:700}p.fl .lo{color:var(--good);font-weight:700}
 .list li.wkh{padding:8px 16px;background:var(--soft);color:var(--muted);font-size:13px;font-weight:700}
 .installbar{display:flex;align-items:center;gap:10px;background:var(--accbg);border:1px solid var(--acc);border-radius:12px;padding:10px 14px;font-weight:700;color:var(--acc);cursor:pointer;font:inherit;width:100%;text-align:start}
 
@@ -353,24 +354,59 @@ function calLink(x){
 }
 function viewMine(){
   if (!me) { view.innerHTML = `<div class="card"><h2>המשמרות שלי</h2><p class="hint">בחר את השם שלך פעם אחת. זה נשמר בטלפון.</p><button type="button" class="btn pri" id="setme">בחירת שם</button></div>`; document.getElementById("setme").onclick = pickMe; return; }
-  const list = myUpcoming(me), now2 = new Date();
-  const curLeft = list.some(x => +x.base === +W0 && x.end > now2);
-  const focus = curLeft || !WEEKS.next ? WEEKS.cur : WEEKS.next, wl = curLeft || !WEEKS.next ? "השבוע" : "בשבוע הבא";
-  const fl = list.filter(x => +x.base === +focus.base);
-  const nights = fl.filter(x=>x.s===3).length, we = fl.filter(x=>isWeekend(x.day,x.s)).length;
-  const warn = restWarnings(list);
-  let h = `<div class="card"><h2>${esc(me)}</h2><div class="stats"><div><b>${fl.length}</b><span>משמרות ${wl}</span></div><div><b>${nights}</b><span>לילות ${wl}</span></div><div><b>${we}</b><span>סופ״ש ${wl}</span></div></div>`;
-  if (warn.size) h += `<div class="alert bad">יש לך ${warn.size === 1 ? "משמרת אחת" : warn.size + " משמרות"} עם פחות מ־11 שעות מנוחה לפניה. מסומן למטה.</div>`;
-  h += `</div>` + mineExtras() + `<div class="card flush"><ul class="list">`;
-  let lastBase = null;
-  h += list.length ? list.map(x=>`${+x.base !== +lastBase ? (lastBase = x.base, `<li class="wkh">${+x.base === +W0 ? "השבוע" : "שבוע הבא"} · ${dm(x.base)} עד ${dm(addDays(x.base, 6))}</li>`) : ""}<li><div class="d">${DAYN[x.day]}<span>${dm(addDays(x.base || W0,x.day))}</span></div>
-      <div class="s"><i class="dot" style="background:var(${x.color})"></i> ${SH[x.s]} · ${esc(x.post)}<span>${hhmm(x.start)}-${hhmm(x.end)}${typeof x.cell!=="string"?" · "+esc(x.cell.m):""}</span>${warn.has(x)?`<div class="warn">⚠ ${warn.get(x)}</div>`:""}</div>
-      <div style="display:flex;flex-direction:column;gap:4px"><button type="button" class="cal" data-addcal="${list.indexOf(x)}">+ ליומן</button>${x.end > new Date() ? `<button type="button" class="cal" data-cant="${list.filter(y => y.end > new Date()).indexOf(x)}">לא יכול</button>` : ""}</div></li>`).join("")
-    : `<li class="empty">${WEEKS.next ? "אין לך משמרות השבוע ובשבוע הבא." : "אין לך משמרות השבוע. הסידור לשבוע הבא עוד לא פורסם."}</li>`;
-  const canSub = DATA.calLive && TOKEN && GDOC;
-  h += `</ul></div>${canSub ? `<button type="button" class="btn ${GDOC.prof && GDOC.prof.calSub ? "sec" : "pri"}" id="mine_sub">🔄 ${GDOC.prof && GDOC.prof.calSub ? "✓ היומן מסונכרן" : "סנכרון אוטומטי ליומן"}</button>` : ""}${list.length ? `<button type="button" class="btn sec" id="mine_ics">📅 הוסף את כל המשמרות שלי ליומן</button>` : ""}<p class="hint">"+ ליומן" מוסיף משמרת אחת. "לא יכול" מציג מי לשאול, לפי הסדר.</p>`;
+  // "mine" for the guard at the edge (Nitzan, 21.11): only what is ahead, in plain words
+  const now2 = new Date(), all = myUpcoming(me), list = all.filter(x => x.end > now2), warn = restWarnings(all);
+  const allSlots = [...WEEKS.cur.slots, ...((WEEKS.next || {}).slots || [])];
+  const hand = x => { const near = (a, b) => Math.abs(a - b) <= 36e5;   // who hands over to me, and to whom I hand over
+    const p = allSlots.find(y => y.post === x.post && y !== x && near(y.end, x.start)), n = allSlots.find(y => y.post === x.post && y !== x && near(y.start, x.end));
+    return [p ? p.who : "", n ? n.who : ""]; };
+  const dayTxt2 = x => `${DAYN[x.day]} ${dm(addDays(x.base || W0, x.day))}`;
+  let h = "";
+  // 1. the next shift
+  const nx = list[0];
+  if (nx) {
+    const hrs = Math.max(0, (nx.start - now2) / 36e5), [hp, hn] = hand(nx);
+    const when = nx.start <= now2 ? "עכשיו במשמרת" : hrs < 24 ? `בעוד ${Math.floor(hrs)} ש׳ ${Math.round((hrs % 1) * 60)} ד׳` : (d => d === 1 ? "מחר" : `בעוד ${d} ימים`)(Math.round(hrs / 24));
+    h += `<div class="card"><h3>המשמרת הבאה שלך · ${when}</h3><div class="big">${dayTxt2(nx)} · ${SH[nx.s]}</div>
+      <div class="hint"><i class="dot" style="background:var(${nx.color})"></i> עמדה ${esc(nx.post)} · ${hhmm(nx.start)}-${hhmm(nx.end)}</div>
+      ${hp || hn ? `<div class="hint">${hp ? `מקבל מ<b>${esc(hp)}</b>` : ""}${hp && hn ? " · " : ""}${hn ? `מעביר ל<b>${esc(hn)}</b>` : ""}</div>` : ""}</div>`;
+  } else h += `<div class="card"><h3>המשמרת הבאה שלך</h3><p class="hint">${WEEKS.next ? "אין לך משמרות השבוע ובשבוע הבא." : "אין לך עוד משמרות השבוע. הסידור לשבוע הבא עוד לא פורסם."}</p></div>`;
+  // 2. my week in one line
+  const curLeft = list.some(x => +x.base === +W0), focus = curLeft || !WEEKS.next ? WEEKS.cur : WEEKS.next;
+  const fl = all.filter(x => +x.base === +focus.base), offDays = DAYN.filter((d, i) => !fl.some(x => x.day === i));
+  const nN = fl.filter(x => x.s === 3).length, nS = fl.filter(x => (x.day === 5 && x.s >= 2) || (x.day === 6 && x.s <= 2)).length;
+  h += `<div class="card"><h3>${+focus.base === +W0 ? "השבוע" : "השבוע הבא"} שלך · ${dm(focus.base)} עד ${dm(addDays(focus.base, 6))}</h3>
+    <div class="stats s4"><div><b>${fl.length}</b><span>משמרות</span></div><div><b>${nN}</b><span>לילות</span></div><div><b>${nS}</b><span>שבת</span></div><div><b>${offDays.length}</b><span>ימי חופש</span></div></div>
+    ${offDays.length ? `<p class="hint">חופש: ${offDays.join(", ")}</p>` : ""}</div>`;
+  // 3. fairness, in one sentence per item
+  if (LED.weeks.length) {
+    const L = ledgerOf(me), core = teamCore(null).filter(n => !same(n, me));
+    const avg = k => core.length ? core.reduce((a, n) => a + ledgerOf(n)[k], 0) / core.length : 0;
+    const line = (k, label) => { const v = L[k], m = avg(k), diff = v - m;
+      const verdict = diff >= 1 ? `<span class="hi">יותר מהממוצע</span>. בסידורים הבאים יגיעו לך פחות.` : diff <= -1 ? `<span class="lo">פחות מהממוצע</span>. ייתכן שיגיעו לך יותר.` : `בדיוק בממוצע 👍`;
+      return `<p class="fl"><b>${label}: ${v}</b> <span class="hint">(בצוות בממוצע ${m.toFixed(0)})</span><br>${verdict}</p>`; };
+    h += `<div class="card"><h3>הוגנות · ${LED.weeks.length} השבועות האחרונים</h3>${line("nt", "לילות")}${line("sat", "שבתות")}
+      <p class="hint">לפי הסידורים שפורסמו, גם אם החלפת אחר כך. ככה המערכת מאזנת לילות ושבתות בין כולם.</p></div>`;
+  }
+  // 4. constraints for the open week
+  if (FBC && TOKEN && GDOC) {
+    const ws = planWeeks()[0], c = (GDOC.cons || {})[iso(ws)], lk = lockAt(ws);
+    h += `<div class="card"><h3>אילוצים לשבוע ${dm(ws)}</h3>${c && c.at ? `<span class="pill ok">✓ הגשת. אפשר לשנות עד ${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00</span>`
+      : `<p class="hint">עוד לא עדכנת. ננעל ב${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00. בלי עדכון משבצים לפי התבנית שלך.</p><button type="button" class="btn pri" id="gocons">לעדכון אילוצים</button>`}</div>`;
+  } else if (FBC && canVerify()) h += `<p class="hint">כדי לשמור אילוצים ולקבל התראות: ⚙ הגדרות ← אמת אותי בוואטסאפ.</p>`;
+  // 5. what is ahead (past shifts are gone)
+  if (list.length) {
+    let lastBase = null;
+    h += `<div class="card flush"><ul class="list">` + list.map(x => { const [hp, hn] = hand(x);
+      return `${+x.base !== +lastBase ? (lastBase = x.base, `<li class="wkh">${+x.base === +W0 ? "השבוע" : "שבוע הבא"} · ${dm(x.base)} עד ${dm(addDays(x.base, 6))}</li>`) : ""}<li><div class="d">${DAYN[x.day]}<span>${dm(addDays(x.base || W0, x.day))}</span></div>
+      <div class="s"><i class="dot" style="background:var(${x.color})"></i> ${SH[x.s]} · ${esc(x.post)}<span>${hhmm(x.start)}-${hhmm(x.end)}${hp ? " · מקבל מ" + esc(hp) : ""}</span>${warn.has(x) ? `<div class="warn">⚠ ${warn.get(x)}</div>` : ""}</div>
+      <div style="display:flex;flex-direction:column;gap:4px"><button type="button" class="cal" data-addcal="${all.indexOf(x)}">+ ליומן</button><button type="button" class="cal" data-cant="${list.indexOf(x)}">לא יכול</button></div></li>`; }).join("") + `</ul></div>`;
+    const canSub = DATA.calLive && TOKEN && GDOC;
+    h += `<div class="actions">${canSub ? `<button type="button" class="btn ${GDOC.prof && GDOC.prof.calSub ? "sec" : "pri"}" id="mine_sub">🔄 ${GDOC.prof && GDOC.prof.calSub ? "✓ היומן מסונכרן" : "סנכרון אוטומטי ליומן"}</button>` : ""}<button type="button" class="btn sec" id="mine_ics">📅 הוסף את כל המשמרות ליומן</button></div>`;
+  }
   view.innerHTML = h;
   wireMine();
+  const gc = document.getElementById("gocons"); if (gc) gc.onclick = () => { tab = "cons"; consTab = "w0"; store.set("tab", tab); render(); window.scrollTo(0, 0); };
 }
 
 // ---- requests: swap + constraints ----
