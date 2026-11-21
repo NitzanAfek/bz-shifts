@@ -1548,6 +1548,10 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
+  const BUILD = "7e8f47de09bb";
+  const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
+  setInterval(checkBuild, 120000);
   setInterval(async () => {
     if (document.hidden) return;
     try { const n = await (await fetch("data.enc.json", {cache:"no-store"})).json();
