@@ -714,10 +714,10 @@ const TEAM_LABEL = "אלירן";
 const sundayOnOrAfter = d => addDays(d, (7 - d.getDay()) % 7);
 const iso = d => d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
 const lockAt = ws => { const t = addDays(ws, -7); return new Date(t.getFullYear(), t.getMonth(), t.getDate(), 20, 0); };   // Sunday 20:00 the week before (Nitzan, 20.11)
-function planWeeks(){   // the next two weeks whose constraints are still open
-  const out = []; let w = sundayOnOrAfter(addDays(new Date(), 1));
-  while (out.length < 2) { if (new Date() < lockAt(w)) out.push(w); w = addDays(w, 7); }
-  return out;
+function planWeeks(){   // one open week (Nitzan, 21.11): the next week whose Sunday-20:00 lock has not passed
+  let w = sundayOnOrAfter(addDays(new Date(), 1));
+  while (new Date() >= lockAt(w)) w = addDays(w, 7);
+  return [w];
 }
 const STATES = ["", "↑", "↓", "⛔"];               // 0 neutral, 1 prefer, 2 prefer not, 3 blocked
 const STATE_TXT = ["ניטרלי", "מעדיף", "מעדיף שלא", "חסום"];
@@ -800,8 +800,8 @@ function viewCons(){
   if (gState === "idle" || gState === "loading") { view.innerHTML = `<div class="card"><p class="hint">טוען את האילוצים שלך…</p></div>`; loadGuard(); return; }
   if (gState !== "ok") { view.innerHTML = `<div class="card"><h2>אילוצים</h2><div class="alert bad">${gState === "missing" ? "הקישור האישי לא מוכר. בקש מניצן קישור חדש." : "אין חיבור לשרת כרגע. נסה שוב בעוד רגע."}</div></div>`; if (gState === "error") { gState = "idle"; } return; }
   const W = planWeeks(), G = GDOC; G.cons = G.cons || {}; G.tpl = G.tpl || {cells: {}}; G.prof = G.prof || {maxN: 2, nightPref: 0, note: ""};
-  if (consTab === "prof") consTab = "tpl";
-  const tabs = [["w0", "שבוע " + dm(W[0])], ["w1", "שבוע " + dm(W[1])], ["tpl", "התבנית שלי"]];
+  if (consTab === "prof" || consTab === "w1") consTab = "tpl";
+  const tabs = [["w0", "שבוע " + dm(W[0])], ["tpl", "התבנית שלי"]];
   let h = `<div class="seg" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-ct="${k}" aria-selected="${consTab === k}">${l}</button>`).join("")}</div>`;
   if (consTab === "w0" || consTab === "w1") {
     const ws = W[consTab === "w0" ? 0 : 1], key = iso(ws);
@@ -1261,7 +1261,7 @@ function viewAdmin(){
       </tbody></table></div></div>
       ${gone.length ? `<div class="card"><h3>יצאו מהקבוצות</h3>${gone.map(([k, p]) => `<p class="hint">${esc(p.name || p.wa || ph(k))} · ${ph(k)} · יצא ${esc(p.left.slice(8, 10) + "." + p.left.slice(5, 7))}</p>`).join("")}</div>` : ""}`;
   } else if (aTab === "plan") {
-    const ws = W[Math.min(aWeek, 1)], post = aPost || teamPostFor(ws);
+    const ws = W[0], post = aPost || teamPostFor(ws);
     const needed = 28 - core.length * 5;
     flo.forEach(n => { if (aCaps[n] == null) aCaps[n] = ((ADOC.alloc || {})[n] || {})[TEAM_LABEL] || 0; });
     h += `<div class="card"><h3>טיוטה לשבוע</h3><div class="seg">${W.map((w, i) => `<button type="button" data-aw="${i}" aria-selected="${aWeek === i}">${dm(w)}</button>`).join("")}</div>
@@ -1315,7 +1315,7 @@ function viewAdmin(){
   view.querySelectorAll("[data-cap]").forEach(i => i.oninput = () => { aCaps[i.dataset.cap] = Math.max(0, Math.min(5, +i.value || 0)); });
   const run = document.getElementById("arun");
   if (run) { run.onclick = () => { run.textContent = "מחשב…"; setTimeout(() => {
-      const ws = W[Math.min(aWeek, 1)], post = aPost || teamPostFor(ws);
+      const ws = W[0], post = aPost || teamPostFor(ws);
       const prevSlots = +addDays(ws, -7) === +WEEKS.cur.base ? WEEKS.cur.slots : (WEEKS.next && +addDays(ws, -7) === +WEEKS.next.base ? WEEKS.next.slots : []);
       const lastEnd = n => { const m = prevSlots.filter(y => same(canonN(y.who), n)).map(y => (y.end - ws) / 36e5); return m.length ? Math.max(...m) : -99; };
       const mk = (n, kind) => { const g = GDOCS[n] || {}; return {n, kind, cap: kind === "core" ? 5 : (aCaps[n] || 0),
