@@ -142,6 +142,8 @@ td[data-why]{cursor:pointer}
 .stats.s4{grid-template-columns:repeat(4,1fr)}.stats.s4 b{font-size:20px}
 td.bad{background:var(--badbg)}td small,th small{display:block}
 p.fl{margin:0;font-size:15px;line-height:1.6}p.fl .hi{color:var(--bad);font-weight:700}p.fl .lo{color:var(--good);font-weight:700}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.tags i{font-style:normal;font-size:12px;background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--muted)}
+.linkbtn{font:inherit;font-weight:700;background:none;border:0;padding:0;color:var(--acc);text-decoration:underline;cursor:pointer}
 .list li.wkh{padding:8px 16px;background:var(--soft);color:var(--muted);font-size:13px;font-weight:700}
 .installbar{display:flex;align-items:center;gap:10px;background:var(--accbg);border:1px solid var(--acc);border-radius:12px;padding:10px 14px;font-weight:700;color:var(--acc);cursor:pointer;font:inherit;width:100%;text-align:start}
 
@@ -1290,7 +1292,7 @@ function viewAdmin(){
       const lbl = ks => ks.map(k => k.endsWith("-all") ? "כל " + DAYN[k.split("-")[0]] : DAYN[k.split("-")[0]] + " " + SH[k.split("-")[1]]).join(", ");
       const pend = g.tpl ? blockSplit(g.tpl.cells || {}, g.tplOk, false).pend : [];
       const wpend = W.map(w => { const c = g.cons && g.cons[iso(w)]; return c ? [w, blockSplit(c.cells, g.tplOk, (g.consOk || {})[iso(w)]).pend, c.reasons] : [w, [], ""]; }).filter(x => x[1].length);
-      return `<li><div class="s">${esc(n)} <small style="color:var(--muted)">${kind}</small><span>${st.length ? st.join(" · ") : (g.token ? "עוד לא מילא" : "אין קישור")}</span>${g.prof && g.prof.note ? `<span>💬 ${esc(g.prof.note)}</span>` : ""}
+      return `<li><div class="s"><button type="button" class="linkbtn" data-see="${esc(n)}">${esc(n)}</button> <small style="color:var(--muted)">${kind}</small><span>${st.length ? st.join(" · ") : (g.token ? "עוד לא מילא" : "אין קישור")}</span>${g.prof && g.prof.note ? `<span>💬 ${esc(g.prof.note)}</span>` : ""}
         ${pend.length ? `<span class="warn">חסימה קבועה רביעית ומעלה: ${lbl(pend)} <button class="mebtn" data-appr="${esc(n)}">אשר</button></span>` : ""}
         ${wpend.map(([w, ks, why]) => `<span class="warn">שבוע ${dm(w)}, חסימה רביעית ומעלה: ${lbl(ks)}${why ? ` · "${esc(why)}"` : ""} <button class="mebtn" data-apw="${esc(n)}|${iso(w)}">אשר</button></span>`).join("")}</div>
         ${g.token ? `<a class="cal" target="_blank" rel="noopener" href="${waLink(`היי ${first(n)} 👋\nזה הקישור האישי שלך לאפליקציית הבונקר: אילוצים, התבנית השבועית שלך ואישור משמרות.\n${linkFor(g.token)}\nהקישור אישי, אל תעביר אותו.`)}">שלח</a><button class="cal" data-cpl="${esc(n)}">העתק</button>` : `<button class="cal" data-mk="${esc(n)}">צור קישור</button>`}
@@ -1323,10 +1325,11 @@ function viewAdmin(){
     act.sort(([, a], [, b]) => (!!a.name - !!b.name) || a.name.localeCompare(b.name, "he"));
     h += `<div class="card"><div class="stats s4"><div><b>${act.length}</b><span>בקבוצות</span></div><div><b>${cnt(p => p.app)}</b><span>נרשמו לאפליקציה</span></div><div><b>${cnt(p => p.verified)}</b><span>אימתו טלפון</span></div><div><b>${cnt(p => p.cal)}</b><span>סנכרנו יומן</span></div></div>
       <p class="hint">${ROSTER ? "כל מי שנמצא ב־4 קבוצות הבונקר, לפי מספר טלפון. מתעדכן לבד מהוואטסאפ. עודכן " + esc(ROSTER.updated.replace("T", " ")) + "." : "הרשימה עוד לא נבנתה."} "?" = מספר שהבוט לא זיהה: בחר שם והוא יתעדכן בריצה הבאה.</p></div>
-      <div class="card flush"><div class="tw"><table><thead><tr><th style="text-align:start">שומר</th><th>טלפון</th><th>קבוצות</th><th>נרשם</th><th>אימת</th><th>נכנס לאחרונה</th><th>יומן</th><th>🔔</th></tr></thead><tbody>
-      ${act.map(([k, p]) => `<tr><th style="font-weight:600">${sel(k, p.name)}${p.wa && p.wa !== p.name ? `<small>בוואטסאפ: ${esc(p.wa)}</small>` : ""}</th><td style="direction:ltr;font-variant-numeric:tabular-nums;font-size:13px">${ph(k)}</td>
-        <td title="${esc(p.groups.join(" · "))}">${p.groups.length}/4</td><td>${ok(p.app)}</td><td>${ok(p.verified)}</td><td style="font-size:13px">${p.seen ? esc(p.seen.slice(8, 10) + "." + p.seen.slice(5, 7).replace(/^0/, "")) : ok(0)}</td><td>${ok(p.cal)}</td><td>${p.push ? "🔔" : ok(0)}</td></tr>`).join("")}
-      </tbody></table></div></div>
+      <div class="card flush"><ul class="list">
+      ${act.map(([k, p]) => { const tags = [`${p.groups.length}/4 קבוצות`, p.app ? "✓ נרשם" : "", p.verified ? "✓ אימת" : "", p.seen ? "נכנס " + esc(p.seen.slice(8, 10) + "." + p.seen.slice(5, 7).replace(/^0/, "")) : "", p.cal ? "✓ יומן" : "", p.push ? "🔔" : ""].filter(Boolean);
+        return `<li style="flex-wrap:wrap"><div class="s" style="min-width:0">${sel(k, p.name)}<span><bdi dir="ltr">${ph(k)}</bdi>${p.wa && p.wa !== p.name ? " · בוואטסאפ: " + esc(p.wa) : ""}</span>
+          <span class="tags">${tags.map(t => `<i>${t}</i>`).join("")}</span></div></li>`; }).join("")}
+      </ul></div>
       ${gone.length ? `<div class="card"><h3>יצאו מהקבוצות</h3>${gone.map(([k, p]) => `<p class="hint">${esc(p.name || p.wa || ph(k))} · ${ph(k)} · יצא ${esc(p.left.slice(8, 10) + "." + p.left.slice(5, 7))}</p>`).join("")}</div>` : ""}`;
   } else if (aTab === "plan") {
     const ws = W[0], post = aPost || teamPostFor(ws);
@@ -1356,6 +1359,7 @@ function viewAdmin(){
   view.innerHTML = h; wireAdminTabs();
   view.querySelectorAll("[data-mk]").forEach(b => b.onclick = async () => { b.textContent = "יוצר…"; try { await makeLink(b.dataset.mk); } catch(e) { toast("לא נוצר"); } viewAdmin(); });
   view.querySelectorAll("[data-cpl]").forEach(b => b.onclick = () => copy(linkFor(GDOCS[b.dataset.cpl].token)));
+  view.querySelectorAll("[data-see]").forEach(b => b.onclick = () => guardSheet(b.dataset.see));
   view.querySelectorAll("[data-pmok]").forEach(b => b.onclick = async () => { const t = b.dataset.pmok, n = ADOC.pendingManual[t];
     try { const g = await fsGet("guards/" + t) || {name: n}; g.state = "verified"; g.verified = new Date().toISOString(); await fsSet("guards/" + t, g);
       ADOC.guards = ADOC.guards || {}; ADOC.guards[t] = n; delete ADOC.pendingManual[t]; await saveAdmin(); aState = "idle"; loadAdmin(); } catch(e) { toast("לא נשמר"); } });
@@ -1391,6 +1395,27 @@ function viewAdmin(){
       const ppl = [...core.map(n => mk(n, "core")), ...flo.filter(n => aCaps[n] > 0).map(n => mk(n, "floater"))];
       draft = schedule(ws, post, ppl); drawDraft(); run.textContent = "בנה שוב (גרסה אחרת)"; }, 30); };
     if (draft) drawDraft(); }
+}
+// a guard's constraints and fixed template, read-only, for his team lead (22.11)
+function readGrid(cells, ws){
+  let h = `<div class="grid7 g2"><span></span>${SH.map(s => `<span class="h">${s}</span>`).join("")}`;
+  for (let d = 0; d < 7; d++) { const day = cells[d + "-all"] || 0;
+    h += `<div class="dn${day ? " dayb day" + day : ""}" style="cursor:default">${ws ? `${DAYN[d]} <b>${dm(addDays(ws, d))}</b>` : DAYN[d]}${day === 2 ? "<span>🌴 מבקש חופש</span>" : day === 3 ? "<span>⛔ חייב חופש</span>" : ""}</div>`;
+    for (let s = 0; s < 4; s++) { const v = day || cells[d + "-" + s] || 0; h += `<div class="tg st${v}" style="display:flex;align-items:center;justify-content:center">${day ? (day === 2 ? "🌴" : "⛔") : STATES[v]}</div>`; } }
+  return h + `</div>`;
+}
+function guardSheet(n){
+  const g = GDOCS[n] || {}, ws = planWeeks()[0], c = (g.cons || {})[iso(ws)], P = g.prof || {}, tpl = (g.tpl || {}).cells || {};
+  const sh = document.createElement("div"); sh.className = "sheet";
+  sh.innerHTML = `<div class="card"><h2>${esc(n)}</h2>
+    ${!g.token ? `<p class="hint">עוד לא מחובר לאפליקציה.</p>` : ""}
+    <h3>אילוצים לשבוע ${dm(ws)}</h3>${c && c.at ? readGrid(c.cells || {}, ws) + (c.note ? `<p class="hint">💬 ${esc(c.note)}</p>` : "") + (c.reasons ? `<p class="hint">סיבה ליותר מ־3 חסימות: ${esc(c.reasons)}</p>` : "") : `<p class="hint">לא עדכן את השבוע. ישובץ לפי התבנית שלו.</p>`}
+    <h3>התבנית הקבועה</h3>${Object.keys(tpl).length ? readGrid(tpl, null) : `<p class="hint">לא מילא תבנית.</p>`}
+    <p class="hint">לילות: ${P.nightPref === 1 ? "מעדיף לילות" : P.nightPref === -1 ? "כמה שפחות לילות" : "ניטרלי"}${P.maxN != null ? ` · עד ${P.maxN} בשבוע` : ""}${P.note ? `<br>💬 ${esc(P.note)}` : ""}</p>
+    <div class="legend2"><span class="st1">↑ מעדיף</span><span class="st2">↓ מעדיף שלא</span><span class="st3">⛔ חסום</span><span>🌴 מבקש חופש</span></div>
+    <button type="button" class="btn sec" id="gsx">סגור</button></div>`;
+  document.body.appendChild(sh);
+  sh.querySelector("#gsx").onclick = () => sh.remove(); sh.onclick = e => { if (e.target === sh) sh.remove(); };
 }
 function wireAdminTabs(){ view.querySelectorAll("[data-at]").forEach(b => b.onclick = () => { aTab = b.dataset.at; store.set("aTab", aTab); viewAdmin(); }); }
 function drawDraft(){
