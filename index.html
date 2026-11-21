@@ -136,6 +136,7 @@ td[data-why]{cursor:pointer}
 .legend2 .st1{color:var(--good);font-weight:700}.legend2 .st2{color:var(--swap);font-weight:700}.legend2 .st3{color:var(--bad);font-weight:700}
 .stats.s4{grid-template-columns:repeat(4,1fr)}.stats.s4 b{font-size:20px}
 td.bad{background:var(--badbg)}td small,th small{display:block}
+.list li.wkh{padding:8px 16px;background:var(--soft);color:var(--muted);font-size:13px;font-weight:700}
 .installbar{display:flex;align-items:center;gap:10px;background:var(--accbg);border:1px solid var(--acc);border-radius:12px;padding:10px 14px;font-weight:700;color:var(--acc);cursor:pointer;font:inherit;width:100%;text-align:start}
 
 </style>
@@ -218,6 +219,8 @@ function buildSlots(P, base){
 }
 const WEEKS = {cur: {P: DATA.posts, base: W0, slots: SLOTS}};
 if (DATA.next) { const NB = new Date(DATA.next.week_start + "T00:00:00"); WEEKS.next = {P: DATA.next.posts, base: NB, slots: buildSlots(DATA.next.posts, NB)}; }
+// personal screens look at both published weeks, so the new week shows up the moment it is published, not on Sunday
+const myUpcoming = n => [...WEEKS.cur.slots, ...((WEEKS.next || {}).slots || [])].filter(x => same(x.who, n)).sort((a, b) => a.start - b.start);
 let swapWeek = "cur";
 const WK_ = () => WEEKS[swapWeek] || WEEKS.cur;
 const shiftsW = n => WK_().slots.filter(x => same(x.who, n)).sort((a,b) => a.start - b.start);
@@ -284,13 +287,13 @@ function viewNow(){
   }
 
   if (me) {
-    const next = myShifts(me).find(x => x.end > now);
+    const next = myUpcoming(me).find(x => x.end > now);
     if (next) {
       const hrs = Math.max(0, (next.start - now) / 36e5);
       const when = next.start <= now ? "עכשיו במשמרת" : hrs < 24 ? `בעוד ${Math.floor(hrs)} ש׳ ${Math.round((hrs%1)*60)} ד׳` : (d => d === 1 ? "בעוד יום" : d === 2 ? "בעוד יומיים" : `בעוד ${d} ימים`)(Math.round(hrs/24));
-      h += `<div class="card"><h3>המשמרת הבאה שלך</h3><div class="big">${DAYN[next.day]} ${dm(addDays(W0,next.day))} · ${SH[next.s]}</div>
+      h += `<div class="card"><h3>המשמרת הבאה שלך</h3><div class="big">${DAYN[next.day]} ${dm(addDays(next.base || W0, next.day))} · ${SH[next.s]}</div>
         <div class="hint"><i class="dot" style="background:var(${next.color})"></i> עמדה ${esc(next.post)} · ${hhmm(next.start)}-${hhmm(next.end)} · <b>${when}</b></div></div>`;
-    } else h += `<div class="card"><h3>המשמרת הבאה שלך</h3><p class="hint">אין לך עוד משמרות השבוע.</p></div>`;
+    } else h += `<div class="card"><h3>המשמרת הבאה שלך</h3><p class="hint">${WEEKS.next ? "אין לך משמרות השבוע ובשבוע הבא." : "אין לך עוד משמרות השבוע. הסידור לשבוע הבא עוד לא פורסם."}</p></div>`;
   } else h += `<button type="button" class="btn pri" id="setme">בחר את השם שלך כדי לראות את המשמרות שלך</button>`;
   view.innerHTML = h;
   const sm = document.getElementById("setme"); if (sm) sm.onclick = pickMe;
@@ -345,19 +348,20 @@ function calLink(x){
 }
 function viewMine(){
   if (!me) { view.innerHTML = `<div class="card"><h2>המשמרות שלי</h2><p class="hint">בחר את השם שלך פעם אחת. זה נשמר בטלפון.</p><button type="button" class="btn pri" id="setme">בחירת שם</button></div>`; document.getElementById("setme").onclick = pickMe; return; }
-  const list = myShifts(me);
-  const nights = list.filter(x=>x.s===3).length, we = list.filter(x=>isWeekend(x.day,x.s)).length;
-  const team = PEOPLE.filter(n => postOf(n) === postOf(me) && myShifts(n).length);
-  const avgN = team.length ? (team.reduce((a,n)=>a+myShifts(n).filter(x=>x.s===3).length,0)/team.length) : 0;
+  const list = myUpcoming(me), now2 = new Date();
+  const curLeft = list.some(x => +x.base === +W0 && x.end > now2);
+  const focus = curLeft || !WEEKS.next ? WEEKS.cur : WEEKS.next, wl = curLeft || !WEEKS.next ? "השבוע" : "בשבוע הבא";
+  const fl = list.filter(x => +x.base === +focus.base);
+  const nights = fl.filter(x=>x.s===3).length, we = fl.filter(x=>isWeekend(x.day,x.s)).length;
   const warn = restWarnings(list);
-  let h = `<div class="card"><h2>${esc(me)}</h2><div class="stats"><div><b>${list.length}</b><span>משמרות השבוע</span></div><div><b>${nights}</b><span>לילות (ממוצע בעמדה ${avgN.toFixed(1)})</span></div><div><b>${we}</b><span>סופ״ש</span></div></div>`;
-  if (nights > avgN + 0.9) h += `<div class="alert bad">יש לך יותר לילות מהממוצע בעמדה שלך השבוע.</div>`;
+  let h = `<div class="card"><h2>${esc(me)}</h2><div class="stats"><div><b>${fl.length}</b><span>משמרות ${wl}</span></div><div><b>${nights}</b><span>לילות ${wl}</span></div><div><b>${we}</b><span>סופ״ש ${wl}</span></div></div>`;
   if (warn.size) h += `<div class="alert bad">יש לך ${warn.size === 1 ? "משמרת אחת" : warn.size + " משמרות"} עם פחות מ־11 שעות מנוחה לפניה. מסומן למטה.</div>`;
   h += `</div>` + mineExtras() + `<div class="card flush"><ul class="list">`;
-  h += list.length ? list.map(x=>`<li><div class="d">${DAYN[x.day]}<span>${dm(addDays(W0,x.day))}</span></div>
+  let lastBase = null;
+  h += list.length ? list.map(x=>`${+x.base !== +lastBase ? (lastBase = x.base, `<li class="wkh">${+x.base === +W0 ? "השבוע" : "שבוע הבא"} · ${dm(x.base)} עד ${dm(addDays(x.base, 6))}</li>`) : ""}<li><div class="d">${DAYN[x.day]}<span>${dm(addDays(x.base || W0,x.day))}</span></div>
       <div class="s"><i class="dot" style="background:var(${x.color})"></i> ${SH[x.s]} · ${esc(x.post)}<span>${hhmm(x.start)}-${hhmm(x.end)}${typeof x.cell!=="string"?" · "+esc(x.cell.m):""}</span>${warn.has(x)?`<div class="warn">⚠ ${warn.get(x)}</div>`:""}</div>
       <div style="display:flex;flex-direction:column;gap:4px"><button type="button" class="cal" data-addcal="${list.indexOf(x)}">+ ליומן</button>${x.end > new Date() ? `<button type="button" class="cal" data-cant="${list.filter(y => y.end > new Date()).indexOf(x)}">לא יכול</button>` : ""}</div></li>`).join("")
-    : `<li class="empty">אין לך משמרות השבוע.</li>`;
+    : `<li class="empty">${WEEKS.next ? "אין לך משמרות השבוע ובשבוע הבא." : "אין לך משמרות השבוע. הסידור לשבוע הבא עוד לא פורסם."}</li>`;
   const canSub = DATA.calLive && TOKEN && GDOC;
   h += `</ul></div>${canSub ? `<button type="button" class="btn ${GDOC.prof && GDOC.prof.calSub ? "sec" : "pri"}" id="mine_sub">🔄 ${GDOC.prof && GDOC.prof.calSub ? "✓ היומן מסונכרן" : "סנכרון אוטומטי ליומן"}</button>` : ""}${list.length ? `<button type="button" class="btn sec" id="mine_ics">📅 הוסף את כל המשמרות שלי ליומן</button>` : ""}<p class="hint">"+ ליומן" מוסיף משמרת אחת. "לא יכול" מציג מי לשאול, לפי הסדר.</p>`;
   view.innerHTML = h;
@@ -919,14 +923,14 @@ function addAllToCalendar(){
 function wireMine(){
   const mi = document.getElementById("mine_ics"); if (mi) mi.onclick = addAllToCalendar;
   const ms = document.getElementById("mine_sub"); if (ms) ms.onclick = subscribeCal;
-  const ml = myShifts(me);
+  const ml = myUpcoming(me);
   view.querySelectorAll("[data-addcal]").forEach(b => b.onclick = () => addToCalendar([ml[+b.dataset.addcal]]));
   const po = document.getElementById("pushon"); if (po) po.onclick = enablePush;
   const pi = document.getElementById("pinst"); if (pi) pi.onclick = installBot;
   const vs = document.getElementById("vstart"); if (vs) vs.onclick = () => verifySheet(me);
   const b = document.getElementById("confbtn");
   if (b) b.onclick = () => { GDOC.conf = GDOC.conf || {}; const k = DATA.next.week_start; if (GDOC.conf[k]) delete GDOC.conf[k]; else GDOC.conf[k] = new Date().toISOString(); saveGuard(); viewMine(); };
-  view.querySelectorAll("[data-cant]").forEach(b2 => b2.onclick = () => cantSheet(myShifts(me).filter(x => x.end > new Date())[+b2.dataset.cant]));
+  view.querySelectorAll("[data-cant]").forEach(b2 => b2.onclick = () => cantSheet(myUpcoming(me).filter(x => x.end > new Date())[+b2.dataset.cant]));
 }
 
 // ---- emergency pool: who can take a shift, in the order to ask ----
