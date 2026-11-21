@@ -856,11 +856,6 @@ function mineExtras(){
     <div class="stats s4"><div><b>${L.sh}</b><span>משמרות<br>צוות: ${avg("sh").toFixed(1)}</span></div><div><b>${L.nt}</b><span>לילות<br>צוות: ${avg("nt").toFixed(1)}</span></div><div><b>${L.fri}</b><span>שישי<br>צוות: ${avg("fri").toFixed(1)}</span></div><div><b>${L.sat}</b><span>שבת<br>צוות: ${avg("sat").toFixed(1)}</span></div></div>
     <p class="hint">שבת = משישי ערב עד שבת ערב. "צוות" = ממוצע הצוות הקבוע של אלירן. נספר מה שקיבלת בסידור, גם אם החלפת אחר כך.</p></div>`;
   if (FBC && !TOKEN && canVerify()) h += `<p class="hint">כדי לשמור אילוצים ולקבל התראות: ⚙ הגדרות ← אמת אותי בוואטסאפ.</p>`;
-  if (FBC && TOKEN && WEEKS.next && GDOC) {
-    const k = DATA.next.week_start, ok = (GDOC.conf || {})[k];
-    h += `<div class="card"><h3>המשמרות שלך לשבוע ${dm(WEEKS.next.base)}</h3>
-      <button type="button" class="opt" id="confbtn" aria-pressed="${!!ok}"><div class="s"><b>${ok ? "✓ אישרת" : "☐ מאשר את המשמרות שלי לשבוע הבא"}</b><span>${ok ? "תודה. ראש הצוות רואה את האישור." : "לחיצה אחת. במקום \"כולם לאשר\" בקבוצה."}</span></div></button></div>`;
-  }
   return h;
 }
 // ---- the guard's own calendar app (Nitzan, 20.11: iPhone, but lives in Google Calendar) ----
@@ -928,8 +923,6 @@ function wireMine(){
   const po = document.getElementById("pushon"); if (po) po.onclick = enablePush;
   const pi = document.getElementById("pinst"); if (pi) pi.onclick = installBot;
   const vs = document.getElementById("vstart"); if (vs) vs.onclick = () => verifySheet(me);
-  const b = document.getElementById("confbtn");
-  if (b) b.onclick = () => { GDOC.conf = GDOC.conf || {}; const k = DATA.next.week_start; if (GDOC.conf[k]) delete GDOC.conf[k]; else GDOC.conf[k] = new Date().toISOString(); saveGuard(); viewMine(); };
   view.querySelectorAll("[data-cant]").forEach(b2 => b2.onclick = () => cantSheet(myUpcoming(me).filter(x => x.end > new Date())[+b2.dataset.cant]));
 }
 
@@ -1146,27 +1139,26 @@ function schedule(ws, post, people, opt){
       const p = people[pi], x = st[pi], v = p.cells[sl.d + "-" + sl.s] || 0;
       if (v === 3) { hard++; flags.push(`${p.n}: ${DAYN[sl.d]} ${SH[sl.s]} על חסום`); }
       if (x.days.has(sl.d)) { hard++; flags.push(`${p.n}: שתי משמרות ב${DAYN[sl.d]}`); }
-      if (v === 2) cost += 10 * p.w; if (v === 1) cost -= 6 * p.w;
-      if (sl.s === 3) { if (p.prof.nightPref === 1) cost -= 6; if (p.prof.nightPref === -1) cost += 10; }
-      if (p.kind === "floater") cost += 5;
+      // simple points (Nitzan, 21.11): prefer not = 3, prefer = minus 1, a floater instead of a core guard = 1
+      if (v === 2) cost += 3; if (v === 1) cost -= 1;
+      if (sl.s === 3) { if (p.prof.nightPref === 1) cost -= 1; if (p.prof.nightPref === -1) cost += 3; }
+      if (p.kind === "floater") cost += 1;
       x.days.add(sl.d); x.cnt++; x.sl.push(sl); if (sl.s === 3) x.nt++; if (sl.d === 5) x.fri++; if ((sl.d === 5 && sl.s >= 2) || (sl.d === 6 && sl.s <= 2)) x.sat++; });
     people.forEach((p, pi) => { const x = st[pi];
       if (x.cnt > p.cap) { hard += x.cnt - p.cap; flags.push(`${p.n}: ${x.cnt} משמרות, מעל ${p.cap}`); }
-      if (p.kind === "core" && x.cnt > (p.prof.target || 5)) cost += 12 * (x.cnt - (p.prof.target || 5));
-      if (p.prof.maxN != null && x.nt > p.prof.maxN) cost += 10 * (x.nt - p.prof.maxN);
+      if (p.prof.maxN != null && x.nt > p.prof.maxN) cost += 3 * (x.nt - p.prof.maxN);   // nights over his own maximum = like "prefer not"
       const sl = x.sl.sort((a, b) => a.st - b.st); let prev = p.lastEnd, run = 0, prevN = -9;
       for (const s of sl) { const gap = s.st - prev;
-        if (gap < 8) { short++; cost += 600; flags.push(`${p.n}: רק ${Math.round(gap)} ש׳ מנוחה לפני ${DAYN[s.d]} ${SH[s.s]} (אין חלופה)`); }   // Nitzan, 20.11: avoid 6-hour rests as far as possible
-        else if (gap < 11) cost += 15;
-        if (s.s === 3) { run = prevN === s.d - 1 ? run + 1 : 1; prevN = s.d; if (run >= 3) { hard++; flags.push(`${p.n}: 3 לילות ברצף`); } }
+        if (gap < 8) { short++; cost += 10; flags.push(`${p.n}: רק ${Math.round(gap)} ש׳ מנוחה לפני ${DAYN[s.d]} ${SH[s.s]} (אין חלופה)`); }   // Nitzan, 20.11: avoid 6-hour rests as far as possible
+        // 3 nights in a row is fine (Nitzan, 21.11): some guards prefer nights
         prev = s.en; }
-      if (p.kind === "core" && x.cnt <= 4) cost -= 20 * (1 - p.qRank);
+      if (p.kind === "core" && x.cnt <= 4 && p.qRank === 0) cost -= 2;   // 3 days off for the first in line: minus 2
     });
-    [["nt", 8], ["fri", 8], ["sat", 10]].forEach(([k, Wt]) => {
+    [["nt", 2], ["fri", 2], ["sat", 2]].forEach(([k, Wt]) => {
       const grp = people.map((p, i) => [p, i]).filter(([p]) => p.kind === "core" && !(k === "nt" && p.prof.nightPref === 1));
       if (!grp.length) return;
       const tot = grp.map(([p, i]) => (p.led[k] || 0) + st[i][k]); const m = tot.reduce((a, b) => a + b, 0) / tot.length;
-      cost += Wt * tot.reduce((a, t) => a + (t - m) ** 2, 0) / 2;
+      cost += Wt * tot.reduce((a, t) => a + Math.max(0, t - m), 0);   // 2 points for every night, Friday or Shabbat above the team average
     });
     return {cost: hard * 1000 + cost, hard, short, flags, st};
   }
@@ -1223,7 +1215,7 @@ function viewAdmin(){
   const core = teamCore(ADOC), flo = teamFloaters(ADOC), W = planWeeks();
   if (aTab === "team") {
     const row = (n, kind) => { const g = GDOCS[n] || {}, ws = iso(W[0]);
-      const st = [(g.push || []).length ? "🔔" : "", g.verified ? "✓ אומת" : "", g.tpl && Object.keys(g.tpl.cells || {}).length ? "✓ תבנית" : "", g.cons && g.cons[ws] && g.cons[ws].at ? "✓ אילוצים " + dm(W[0]) : "", WEEKS.next && g.conf && g.conf[DATA.next.week_start] ? "✓ אישר" : ""].filter(Boolean);
+      const st = [(g.push || []).length ? "🔔" : "", g.verified ? "✓ אומת" : "", g.tpl && Object.keys(g.tpl.cells || {}).length ? "✓ תבנית" : "", g.cons && g.cons[ws] && g.cons[ws].at ? "✓ אילוצים " + dm(W[0]) : ""].filter(Boolean);
       const lbl = ks => ks.map(k => DAYN[k.split("-")[0]] + " " + SH[k.split("-")[1]]).join(", ");
       const pend = g.tpl ? blockSplit(g.tpl.cells || {}, g.tplOk, false).pend : [];
       const wpend = W.map(w => { const c = g.cons && g.cons[iso(w)]; return c ? [w, blockSplit(c.cells, g.tplOk, (g.consOk || {})[iso(w)]).pend, c.reasons] : [w, [], ""]; }).filter(x => x[1].length);
@@ -1334,7 +1326,7 @@ function drawDraft(){
   const cellCls = (pi, dd, s) => { if (pi < 0) return "bad"; const p = d.people[pi]; const k = `${DAYN[dd]} ${SH[s]}`; return p.broke.includes(k) ? "sw" : p.got.includes(k) ? "lv" : ""; };
   let t = `<div class="card"><div class="stats s4"><div><b>${d.kpi.hard ? "⚠ " + d.kpi.hard : "100%"}</b><span>אילוצים קשיחים</span></div><div><b>${d.kpi.softPct}%</b><span>"מעדיף שלא" כובדו</span></div><div><b>${d.kpi.nights}</b><span>לילות לקבוע</span></div><div><b>${d.kpi.floaterShifts}</b><span>משמרות מתגבר</span></div></div>
     ${d.kpi.three.length ? `<p class="hint">3 ימי חופש: <b>${d.kpi.three.map(esc).join(", ")}</b> (לפי התור).</p>` : ""}
-    ${d.flags.length ? `<div class="alert bad"><b>חוקים שנשברו</b><ul>${d.flags.slice(0, 8).map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>` : `<span class="pill ok">✓ כל החוקים נשמרו: עד 5 משמרות, 2 ימי חופש, אין מנוחה של 6 שעות, עד 2 לילות ברצף</span>`}</div>`;
+    ${d.flags.length ? `<div class="alert bad"><b>חוקים שנשברו</b><ul>${d.flags.slice(0, 8).map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>` : `<span class="pill ok">✓ כל החוקים נשמרו: עד 5 משמרות, 2 ימי חופש, אין מנוחה של 6 שעות</span>`}</div>`;
   t += `<div class="card flush"><div class="tw"><table><thead><tr><th style="width:64px">${esc(d.post)}</th>${SH.map(s => `<th>${s}</th>`).join("")}</tr></thead><tbody>`;
   for (let dd = 0; dd < 7; dd++) t += `<tr><th>${DAYN[dd]}<small>${dm(addDays(ws, dd))}</small></th>${[0, 1, 2, 3].map(s => { const pi = d.out[dd*4 + s]; return `<td class="${cellCls(pi, dd, s)}">${pi < 0 ? "?" : esc(d.names[pi])}</td>`; }).join("")}</tr>`;
   t += `</tbody></table></div></div><p class="hint">ירוק = קיבל משמרת שביקש · כתום = "מעדיף שלא" שנשבר · אדום = אין שומר</p>`;
