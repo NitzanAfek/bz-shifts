@@ -132,6 +132,11 @@ td[data-why]{cursor:pointer}
 .tg.st2{background:var(--swapbg);border-color:var(--swap);color:var(--swap);font-weight:700}
 .tg.st3{background:var(--badbg);border-color:var(--bad);color:var(--bad);font-weight:700}
 .tg small{display:block;font-size:10px;font-weight:400}
+.dayb{font:inherit;text-align:start;background:none;border:1px dashed var(--line);border-radius:8px;padding:4px 6px;cursor:pointer;color:var(--ink);touch-action:manipulation}
+.dayb span{display:block;font-size:11px;font-weight:700}
+.dayb.day2{background:var(--swapbg);border:1px solid var(--swap)}.dayb.day2 span{color:var(--swap)}
+.dayb.day3{background:var(--badbg);border:1px solid var(--bad)}.dayb.day3 span{color:var(--bad)}
+.tg.dayc{opacity:.75}
 .legend2{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--muted)}
 .legend2 .st1{color:var(--good);font-weight:700}.legend2 .st2{color:var(--swap);font-weight:700}.legend2 .st3{color:var(--bad);font-weight:700}
 .stats.s4{grid-template-columns:repeat(4,1fr)}.stats.s4 b{font-size:20px}
@@ -780,22 +785,32 @@ let consTab = store.get("consTab", "w0");
 let brush = store.get("brush", 3);   // what a tap marks: 1 prefer, 2 prefer not, 3 blocked
 function gridHTML(cells, ws, opts){
   let h = `<div class="brush" role="radiogroup" aria-label="מה לסמן">${[[3, "⛔ חסום"], [2, "↓ מעדיף שלא"], [1, "↑ מעדיף"]].map(([v, l]) => `<button type="button" role="radio" class="st${v}" data-brush="${v}" aria-checked="${brush === v}">${l}</button>`).join("")}</div>
-    <p class="hint" style="margin:0">בחר מה לסמן, ואז לחיצה אחת על משבצת. לחיצה נוספת מנקה.</p>
+    <p class="hint" style="margin:0">בחר מה לסמן, ואז לחיצה אחת על משבצת. לחיצה נוספת מנקה. <b>יום חופש:</b> לחיצה על שם היום.</p>
     <div class="grid7 g2"><span></span>${SH.map(s => `<span class="h">${s}</span>`).join("")}`;
   for (let d = 0; d < 7; d++) {
-    h += `<div class="dn">${ws ? `${DAYN[d]} <b>${dm(addDays(ws, d))}</b>` : DAYN[d]}${!ws && d >= 5 ? "<span>סבב</span>" : ""}</div>`;
-    for (let s = 0; s < 4; s++) { const k = d + "-" + s, v = cells[k] || 0, fixed = opts && opts.fixed && opts.fixed[k], pend = opts && opts.pend && opts.pend.includes(k);
-      h += `<button type="button" class="tg st${v}" data-g="${k}" aria-label="${DAYN[d]} ${SH[s]}: ${STATE_TXT[v]}">${STATES[v]}${pend ? "<small>ממתין</small>" : fixed ? "<small>קבוע</small>" : ""}</button>`; }
+    const day = cells[d + "-all"] || 0, dpend = opts && opts.pend && opts.pend.includes(d + "-all");
+    h += `<button type="button" class="dn dayb${day ? " day" + day : ""}" data-day="${d}" aria-label="${DAYN[d]}: ${day === 3 ? "חייב חופש" : day === 2 ? "מבקש חופש" : "לחץ לסימון חופש"}">${ws ? `${DAYN[d]} <b>${dm(addDays(ws, d))}</b>` : DAYN[d]}${day === 2 ? "<span>🌴 מבקש חופש</span>" : day === 3 ? `<span>⛔ חייב חופש${dpend ? " · ממתין" : ""}</span>` : !ws && d >= 5 ? "<span>סבב</span>" : ""}</button>`;
+    for (let s = 0; s < 4; s++) { const k = d + "-" + s, v = day || cells[k] || 0, fixed = opts && opts.fixed && opts.fixed[k], pend = opts && opts.pend && opts.pend.includes(k);
+      h += `<button type="button" class="tg st${v}${day ? " dayc" : ""}" data-g="${k}" aria-label="${DAYN[d]} ${SH[s]}: ${STATE_TXT[v]}">${day ? (day === 2 ? "🌴" : "⛔") : STATES[v]}${pend ? "<small>ממתין</small>" : fixed ? "<small>קבוע</small>" : ""}</button>`; }
   }
-  return h + `</div>`;
+  return h + `</div><p class="hint" style="margin:0">שם היום: 🌴 מבקש חופש ← ⛔ חייב חופש ← ביטול. "מבקש" כמעט תמיד מתקבל. "חייב" נספר כחסימה אחת.</p>`;
 }
 // Blocks (Nitzan, 20.11): up to 3 a week are approved automatically; the 4th and on wait for Nitzan and count as
 // "prefer not" until he approves. A fixed block he already approved in the template does not use the quota.
+// A day marked off (Nitzan, 21.11) is stored as "d-all": 2 = asks for the day off (like "prefer not" on all 4 shifts),
+// 3 = must be off (blocked all day, and counts as ONE block of the 3).
 function blockSplit(cells, tplOk, weekOk){
-  const ord = k => k.split("-").map(Number).reduce((a, x) => a * 4 + x, 0);
-  const blocks = Object.keys(cells).filter(k => cells[k] === 3).sort((a, b) => ord(a) - ord(b));
+  const ord = k => { const [d, s] = k.split("-"); return +d * 4 + (s === "all" ? 0 : +s); };
+  const mustDay = d => cells[d + "-all"] === 3;
+  const blocks = Object.keys(cells).filter(k => cells[k] === 3 && (k.endsWith("-all") || !mustDay(k.split("-")[0]))).sort((a, b) => ord(a) - ord(b));
   const rest = blocks.filter(k => !(tplOk || {})[k]);
   return {blocks, pend: weekOk ? [] : rest.slice(3)};
+}
+function expandDays(cells){   // per-shift view for the scheduler: a day mark covers its 4 shifts
+  const out = {};
+  for (const [k, v] of Object.entries(cells || {})) if (!k.endsWith("-all")) out[k] = v;
+  for (let d = 0; d < 7; d++) { const v = (cells || {})[d + "-all"]; if (v) for (let s = 0; s < 4; s++) out[d + "-" + s] = v; }
+  return out;
 }
 function viewCons(){
   if (!me) { view.innerHTML = `<div class="card"><h2>אילוצים</h2><p class="hint">קודם בחר את השם שלך.</p><button type="button" class="btn pri" id="setme">בחירת שם</button></div>`; document.getElementById("setme").onclick = pickMe; return; }
@@ -837,7 +852,14 @@ function viewCons(){
   view.querySelectorAll("[data-ct]").forEach(b => b.onclick = () => { consTab = b.dataset.ct; store.set("consTab", consTab); saveMsg = ""; viewCons(); });
   const touch = () => { const t = new Date().toISOString(); if (consTab.startsWith("w")) G.cons[iso(W[consTab === "w0" ? 0 : 1])].at = t; saveGuard(); };
   view.querySelectorAll("[data-brush]").forEach(b => b.onclick = () => { brush = +b.dataset.brush; store.set("brush", brush); viewCons(); });
+  view.querySelectorAll("[data-day]").forEach(b => b.onclick = () => {
+    const cells = consTab === "tpl" ? G.tpl.cells : G.cons[iso(W[consTab === "w0" ? 0 : 1])].cells;
+    const d = b.dataset.day, k = d + "-all", next = {0: 2, 2: 3, 3: 0}[cells[k] || 0];
+    if (next) { cells[k] = next; for (let s = 0; s < 4; s++) delete cells[d + "-" + s]; } else delete cells[k];
+    if (consTab === "tpl") G.tpl.at = new Date().toISOString();
+    touch(); viewCons(); });
   view.querySelectorAll("[data-g]").forEach(b => b.onclick = () => {
+    if (b.classList.contains("dayc")) { toast("היום כולו מסומן. לחיצה על שם היום משנה או מבטלת"); return; }
     const cells = consTab === "tpl" ? G.tpl.cells : G.cons[iso(W[consTab === "w0" ? 0 : 1])].cells;
     const k = b.dataset.g; if (cells[k] === brush) delete cells[k]; else cells[k] = brush;
     if (consTab === "tpl") G.tpl.at = new Date().toISOString();
@@ -1120,8 +1142,10 @@ async function makeLink(n){
 }
 function effCells(g, ws){
   const wk = g.cons && g.cons[iso(ws)];
-  const cells = Object.assign({}, wk ? wk.cells : ((g.tpl && g.tpl.cells) || {}));
-  blockSplit(cells, g.tplOk, wk ? (g.consOk || {})[iso(ws)] : false).pend.forEach(k => cells[k] = 2);   // waiting for Nitzan = prefer not
+  const raw = Object.assign({}, wk ? wk.cells : ((g.tpl && g.tpl.cells) || {}));
+  const pend = blockSplit(raw, g.tplOk, wk ? (g.consOk || {})[iso(ws)] : false).pend;
+  const cells = expandDays(raw);
+  pend.forEach(k => { if (k.endsWith("-all")) { const d = k.split("-")[0]; for (let s = 0; s < 4; s++) cells[d + "-" + s] = 2; } else cells[k] = 2; });   // waiting for approval = prefer not
   return cells;
 }
 function schedule(ws, post, people, opt){
@@ -1218,7 +1242,7 @@ function viewAdmin(){
   if (aTab === "team") {
     const row = (n, kind) => { const g = GDOCS[n] || {}, ws = iso(W[0]);
       const st = [(g.push || []).length ? "🔔" : "", g.verified ? "✓ אומת" : "", g.tpl && Object.keys(g.tpl.cells || {}).length ? "✓ תבנית" : "", g.cons && g.cons[ws] && g.cons[ws].at ? "✓ אילוצים " + dm(W[0]) : ""].filter(Boolean);
-      const lbl = ks => ks.map(k => DAYN[k.split("-")[0]] + " " + SH[k.split("-")[1]]).join(", ");
+      const lbl = ks => ks.map(k => k.endsWith("-all") ? "כל " + DAYN[k.split("-")[0]] : DAYN[k.split("-")[0]] + " " + SH[k.split("-")[1]]).join(", ");
       const pend = g.tpl ? blockSplit(g.tpl.cells || {}, g.tplOk, false).pend : [];
       const wpend = W.map(w => { const c = g.cons && g.cons[iso(w)]; return c ? [w, blockSplit(c.cells, g.tplOk, (g.consOk || {})[iso(w)]).pend, c.reasons] : [w, [], ""]; }).filter(x => x[1].length);
       return `<li><div class="s">${esc(n)} <small style="color:var(--muted)">${kind}</small><span>${st.length ? st.join(" · ") : (g.token ? "עוד לא מילא" : "אין קישור")}</span>${g.prof && g.prof.note ? `<span>💬 ${esc(g.prof.note)}</span>` : ""}
