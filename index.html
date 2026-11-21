@@ -400,7 +400,7 @@ function viewMine(){
     h += `<div class="card flush"><ul class="list">` + list.map(x => { const [hp, hn] = hand(x);
       return `${+x.base !== +lastBase ? (lastBase = x.base, `<li class="wkh">${+x.base === +W0 ? "השבוע" : "שבוע הבא"} · ${dm(x.base)} עד ${dm(addDays(x.base, 6))}</li>`) : ""}<li><div class="d">${DAYN[x.day]}<span>${dm(addDays(x.base || W0, x.day))}</span></div>
       <div class="s"><i class="dot" style="background:var(${x.color})"></i> ${SH[x.s]} · ${esc(x.post)}<span>${hhmm(x.start)}-${hhmm(x.end)}${hp ? " · מקבל מ" + esc(hp) : ""}</span>${warn.has(x) ? `<div class="warn">⚠ ${warn.get(x)}</div>` : ""}</div>
-      <div style="display:flex;flex-direction:column;gap:4px"><button type="button" class="cal" data-addcal="${all.indexOf(x)}">+ ליומן</button><button type="button" class="cal" data-cant="${list.indexOf(x)}">לא יכול</button></div></li>`; }).join("") + `</ul></div>`;
+      <div style="display:flex;flex-direction:column;gap:4px"><button type="button" class="cal" data-addcal="${all.indexOf(x)}">+ ליומן</button></div></li>`; }).join("") + `</ul></div>`;
     const canSub = DATA.calLive && TOKEN && GDOC;
     h += `<div class="actions">${canSub ? `<button type="button" class="btn ${GDOC.prof && GDOC.prof.calSub ? "sec" : "pri"}" id="mine_sub">🔄 ${GDOC.prof && GDOC.prof.calSub ? "✓ היומן מסונכרן" : "סנכרון אוטומטי ליומן"}</button>` : ""}<button type="button" class="btn sec" id="mine_ics">📅 הוסף את כל המשמרות ליומן</button></div>`;
   }
@@ -803,6 +803,8 @@ async function loadGuard(){
   gState = "loading";
   try { GDOC = await fsGet("guards/" + TOKEN); gState = GDOC ? "ok" : "missing";
     if (GDOC && GDOC.name && GDOC.name !== me) { me = GDOC.name; store.set("me", me); }
+    // a verified team lead: the bot puts his team's scheduler key in his own doc, the app turns on the "שיבוץ" tab (21.11)
+    if (GDOC && GDOC.adminKey && store.get("a", "") !== GDOC.adminKey) { store.set("a", GDOC.adminKey); location.reload(); return; }
     // usage (Nitzan, 21.11): when a registered guard last opened the app, at most one write an hour
     if (GDOC && (!GDOC.seen || Date.now() - Date.parse(GDOC.seen) > 3600e3)) { GDOC.seen = new Date().toISOString(); GDOC.opens = (GDOC.opens || 0) + 1; saveGuard(); }
   } catch(e) { gState = "error"; }
