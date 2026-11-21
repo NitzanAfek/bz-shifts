@@ -811,16 +811,16 @@ function viewCons(){
     h += `<div class="card"><h3>${dm(ws)} עד ${dm(addDays(ws, 6))} · ננעל ב${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00</h3>
       <p class="hint">מתחיל מהתבנית שלך. שנה רק מה שחורג השבוע.</p>${gridHTML(C.cells, ws, {fixed: G.tplOk || {}, pend: B.pend})}
       <p class="hint">חסימות השבוע: <b>${B.blocks.length}</b>. עד 3 מאושרות אוטומטית.</p>
-      ${B.pend.length ? `<div class="alert sw">${B.pend.length === 1 ? "חסימה אחת" : B.pend.length + " חסימות"} מעבר ל־3 מחכות לאישור של ניצן. עד האישור הן נחשבות "מעדיף שלא".</div>
-        <label class="f">למה צריך יותר מ־3? (רק ניצן רואה)<textarea id="creason">${esc(C.reasons || "")}</textarea></label>` : ""}
-      <label class="f">הערה לניצן (לא חובה)<textarea id="cnote2" placeholder="למשל: מעדיף לא שני לילות ברצף">${esc(C.note || "")}</textarea></label>
+      ${B.pend.length ? `<div class="alert sw">${B.pend.length === 1 ? "חסימה אחת" : B.pend.length + " חסימות"} מעבר ל־3 מחכות לאישור של ראש הצוות. עד האישור הן נחשבות "מעדיף שלא".</div>
+        <label class="f">למה צריך יותר מ־3? (רק ראש הצוות רואה)<textarea id="creason">${esc(C.reasons || "")}</textarea></label>` : ""}
+      <label class="f">הערה לראש הצוות (לא חובה)<textarea id="cnote2" placeholder="למשל: מעדיף לא שני לילות ברצף">${esc(C.note || "")}</textarea></label>
       <p class="hint" id="savest">${esc(saveMsg || (C.at ? "✓ נשמר" : "עוד לא שמרת שינוי"))}</p></div>`;
   } else if (consTab === "tpl") {
     const fixedOk = G.tplOk || {}, B = blockSplit(G.tpl.cells, fixedOk, false), P = G.prof;
     h += `<div class="card"><h3>התבנית השבועית האידיאלית שלך</h3><p class="hint">ממלאים פעם אחת. כל שבוע חדש מתחיל ממנה. שישי ושבת בסבב לפי הוגנות: סמן שם רק מה שבאמת לא אפשרי.</p>
       ${gridHTML(G.tpl.cells, null, {fixed: fixedOk, pend: B.pend})}
       <p class="hint">עד 3 חסימות קבועות מאושרות אוטומטית.</p>
-      ${B.pend.length ? `<div class="alert sw">${B.pend.length === 1 ? "חסימה אחת" : B.pend.length + " חסימות"} מעבר ל־3 מחכות לאישור של ניצן. עד האישור הן נחשבות "מעדיף שלא".</div>` : ""}</div>
+      ${B.pend.length ? `<div class="alert sw">${B.pend.length === 1 ? "חסימה אחת" : B.pend.length + " חסימות"} מעבר ל־3 מחכות לאישור של ראש הצוות. עד האישור הן נחשבות "מעדיף שלא".</div>` : ""}</div>
     <div class="card"><h3>העדפות קבועות</h3><p class="hint">כל שומר עושה 5 משמרות בשבוע עם 2 ימי חופש. משמרת כפולה אסורה לפי נוהלי הבונקר.</p>
       <label class="f">לילות<select id="pf_np">${[[-1,"מעדיף כמה שפחות לילות"],[0,"ניטרלי"],[1,"מעדיף לילות"]].map(([v,l]) => `<option value="${v}"${P.nightPref == v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
       <label class="f">מקסימום לילות בשבוע<select id="pf_n">${[0,1,2,3].map(v => `<option${P.maxN == v ? " selected" : ""}>${v}</option>`).join("")}</select></label>
@@ -855,7 +855,7 @@ function mineExtras(){
   if (FBC && TOKEN && WEEKS.next && GDOC) {
     const k = DATA.next.week_start, ok = (GDOC.conf || {})[k];
     h += `<div class="card"><h3>המשמרות שלך לשבוע ${dm(WEEKS.next.base)}</h3>
-      <button type="button" class="opt" id="confbtn" aria-pressed="${!!ok}"><div class="s"><b>${ok ? "✓ אישרת" : "☐ מאשר את המשמרות שלי לשבוע הבא"}</b><span>${ok ? "תודה. ניצן רואה את האישור." : "לחיצה אחת. במקום \"כולם לאשר\" בקבוצה."}</span></div></button></div>`;
+      <button type="button" class="opt" id="confbtn" aria-pressed="${!!ok}"><div class="s"><b>${ok ? "✓ אישרת" : "☐ מאשר את המשמרות שלי לשבוע הבא"}</b><span>${ok ? "תודה. ראש הצוות רואה את האישור." : "לחיצה אחת. במקום \"כולם לאשר\" בקבוצה."}</span></div></button></div>`;
   }
   return h;
 }
@@ -972,7 +972,7 @@ function cantSheet(x){
   const sh = document.createElement("div"); sh.className = "sheet";
   const grp = `🚨 צריך מחליף ${urgent ? "דחוף " : ""}למשמרת ${SH[x.s]} ב${dayTxt(x)} (${hrs(x)}) בעמדה ${x.post}. מי יכול?`;
   sh.innerHTML = `<div class="card"><h2>לא יכול להגיע</h2><p class="hint">${SH[x.s]} · ${dayTxt(x)} · ${esc(x.post)} · ${hoursLeft < 0 ? "המשמרת כבר התחילה" : "בעוד " + Math.round(hoursLeft) + " שעות"}</p>
-    ${urgent ? `<div class="alert bad"><b>פחות מ־6 שעות.</b> שלח לקבוצה ותתקשר לשניים הראשונים ברשימה. אחרי 30 דקות בלי מענה: ניצן והמפקד.</div>` : `<p class="hint">שאל את הראשונים ברשימה בפרטי. אחרי שמישהו מסכים, ממלאים טופס החלפה כרגיל בלשונית "החלפה".</p>`}
+    ${urgent ? `<div class="alert bad"><b>פחות מ־6 שעות.</b> שלח לקבוצה ותתקשר לשניים הראשונים ברשימה. אחרי 30 דקות בלי מענה: ראש הצוות והמפקד.</div>` : `<p class="hint">שאל את הראשונים ברשימה בפרטי. אחרי שמישהו מסכים, ממלאים טופס החלפה כרגיל בלשונית "החלפה".</p>`}
     <h3>מי לשאול, לפי הסדר</h3>${poolHTML(x, me)}
     <div class="actions"><a class="btn wa" target="_blank" rel="noopener" href="${waLink(grp)}">הודעה לקבוצה</a><button type="button" class="btn sec" id="cantok">סגור</button></div>
     <p class="hint">מחלה לא נרשמת לך כחוב בספר ההוגנות. מי שמכסה ברגע האחרון מקבל עדיפות בבקשות הבאות שלו.</p></div>`;
