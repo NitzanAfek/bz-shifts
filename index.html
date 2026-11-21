@@ -758,6 +758,8 @@ async function loadGuard(){
   gState = "loading";
   try { GDOC = await fsGet("guards/" + TOKEN); gState = GDOC ? "ok" : "missing";
     if (GDOC && GDOC.name && GDOC.name !== me) { me = GDOC.name; store.set("me", me); }
+    // usage (Nitzan, 21.11): when a registered guard last opened the app, at most one write an hour
+    if (GDOC && (!GDOC.seen || Date.now() - Date.parse(GDOC.seen) > 3600e3)) { GDOC.seen = new Date().toISOString(); GDOC.opens = (GDOC.opens || 0) + 1; saveGuard(); }
   } catch(e) { gState = "error"; }
   render();
 }
@@ -1251,9 +1253,9 @@ function viewAdmin(){
     act.sort(([, a], [, b]) => (!!a.name - !!b.name) || a.name.localeCompare(b.name, "he"));
     h += `<div class="card"><div class="stats s4"><div><b>${act.length}</b><span>בקבוצות</span></div><div><b>${cnt(p => p.app)}</b><span>נרשמו לאפליקציה</span></div><div><b>${cnt(p => p.verified)}</b><span>אימתו טלפון</span></div><div><b>${cnt(p => p.cal)}</b><span>סנכרנו יומן</span></div></div>
       <p class="hint">${ROSTER ? "כל מי שנמצא ב־4 קבוצות הבונקר, לפי מספר טלפון. מתעדכן לבד מהוואטסאפ. עודכן " + esc(ROSTER.updated.replace("T", " ")) + "." : "הרשימה עוד לא נבנתה."} "?" = מספר שהבוט לא זיהה: בחר שם והוא יתעדכן בריצה הבאה.</p></div>
-      <div class="card flush"><div class="tw"><table><thead><tr><th style="text-align:start">שומר</th><th>טלפון</th><th>קבוצות</th><th>נרשם</th><th>אימת</th><th>יומן</th><th>🔔</th></tr></thead><tbody>
+      <div class="card flush"><div class="tw"><table><thead><tr><th style="text-align:start">שומר</th><th>טלפון</th><th>קבוצות</th><th>נרשם</th><th>אימת</th><th>נכנס לאחרונה</th><th>יומן</th><th>🔔</th></tr></thead><tbody>
       ${act.map(([k, p]) => `<tr><th style="font-weight:600">${sel(k, p.name)}${p.wa && p.wa !== p.name ? `<small>בוואטסאפ: ${esc(p.wa)}</small>` : ""}</th><td style="direction:ltr;font-variant-numeric:tabular-nums;font-size:13px">${ph(k)}</td>
-        <td title="${esc(p.groups.join(" · "))}">${p.groups.length}/4</td><td>${ok(p.app)}</td><td>${ok(p.verified)}</td><td>${ok(p.cal)}</td><td>${p.push ? "🔔" : ok(0)}</td></tr>`).join("")}
+        <td title="${esc(p.groups.join(" · "))}">${p.groups.length}/4</td><td>${ok(p.app)}</td><td>${ok(p.verified)}</td><td style="font-size:13px">${p.seen ? esc(p.seen.slice(8, 10) + "." + p.seen.slice(5, 7).replace(/^0/, "")) : ok(0)}</td><td>${ok(p.cal)}</td><td>${p.push ? "🔔" : ok(0)}</td></tr>`).join("")}
       </tbody></table></div></div>
       ${gone.length ? `<div class="card"><h3>יצאו מהקבוצות</h3>${gone.map(([k, p]) => `<p class="hint">${esc(p.name || p.wa || ph(k))} · ${ph(k)} · יצא ${esc(p.left.slice(8, 10) + "." + p.left.slice(5, 7))}</p>`).join("")}</div>` : ""}`;
   } else if (aTab === "plan") {
