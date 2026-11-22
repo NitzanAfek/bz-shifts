@@ -1198,11 +1198,18 @@ function verifySheet(name){
     let hb = null; try { hb = await fsGet("guards/bz-bot-heartbeat-status"); } catch(e) {}
     const at = hb && hb.at ? new Date(hb.at) : null, down = !at || Date.now() - at > 3 * 60e3, key = down ? "down" : "slow";
     if (key === hbShown) return; hbShown = key;
-    draw(down ? `<div class="alert sw"><b>הבוט ששולח את הקודים לא מחובר כרגע${at ? " (מאז " + hhmm(at) + ")" : ""}.</b><br>הבקשה שלך שמורה. הקוד יגיע לוואטסאפ אוטומטית ברגע שהבוט יחזור, בלי לבקש שוב.</div>
-      <p class="hint">אפשר לסגור. כשהקוד יגיע: ⚙ הגדרות ← אמת אותי, או פשוט לחיצה על הקישור שבהודעה.</p>`
+    let pc = store.get("pair", null);
+    if (down && (!pc || pc.t !== tokNow)) { pc = {t: tokNow, c: rnd(8)}; try { await fsSet("guards/pairreq-" + pc.c + "-bunker", {t: tokNow, name, at: new Date().toISOString()}); store.set("pair", pc); } catch(e) { pc = null; } }
+    draw(down ? `<div class="alert sw"><b>הבוט ששולח את הקודים לא מחובר כרגע${at ? " (מאז " + hhmm(at) + ")" : ""}.</b> הבקשה שמורה, והקוד יגיע לבד כשהוא יחזור.</div>
+      ${pc ? `<h3 style="margin:6px 0 0">לא רוצה לחכות?</h3><p class="hint" style="margin:0">תן לראש הצוות את הקוד הזה. הוא מאשר אותך באפליקציה שלו, ואתה בפנים.</p>
+        <p class="big" style="letter-spacing:4px;direction:ltr;text-align:center;margin:6px 0">${pc.c}</p>
+        <a class="btn sec" target="_blank" rel="noopener" href="${waLink("קוד אישור לאפליקציית הבונקר: " + pc.c)}">שלח לראש הצוות בוואטסאפ</a>` : ""}
+      <p class="hint">המסך הזה יתעדכן לבד ברגע שתאושר.</p>`
       : `<p class="hint">הבוט מחובר ושולח את הקוד. עוד רגע…</p><p class="hint">לא הגיע תוך 2 דקות? כתוב לניצן.</p>`);
   }
+  let tokNow = "";
   async function poll(tok){
+    tokNow = tok;
     while (!stop) {
       let g = null; try { g = await fsGet("guards/" + tok); } catch(e) {}
       const st = (g && g.state) || "";
@@ -1262,6 +1269,8 @@ function viewSettings(){
   h += `<div class="card"><h3>מי אני</h3><div class="opt"><div class="s"><b>${me ? esc(me) : "עוד לא נבחר"}</b><span>${ok ? (GDOC.verified ? "✓ אומת בוואטסאפ" : "✓ מחובר אישית") : "לא מאומת: האפליקציה לא שומרת אילוצים ולא שולחת התראות"}</span></div><button type="button" class="cal" id="st_name">${me ? "שנה" : "בחר"}</button></div>
     ${FBC && !TOKEN && canVerify() && me ? `<button type="button" class="btn pri" id="st_verify">אמת אותי בוואטסאפ</button>` : ""}</div>`;
   h += pushCard();
+  if (ok && GDOC.verified) h += `<div class="card"><h3>🔑 הקישור האישי שלך</h3><p class="hint" style="margin:0">פותח את האפליקציה שלך מכל טלפון או דפדפן, בלי קוד ובלי לחכות לבוט. שמור אותו אצלך, למשל שלח לעצמך בוואטסאפ. לא להעביר לאחרים.</p>
+    <div class="actions"><a class="btn sec" target="_blank" rel="noopener" href="${waLink("הקישור האישי שלי לאפליקציית הבונקר (לא להעביר):\n" + linkFor(TOKEN))}">שלח לעצמי בוואטסאפ</a><button type="button" class="btn sec" id="st_mylink">העתק</button></div></div>`;
   if (ok) { const P = GDOC.prof = GDOC.prof || {};
     h += `<div class="card"><h3>יומן</h3>
       <label class="f">אני מתנהל ביומן של<select id="st_calapp"><option value="">בחר…</option>${CAL_APPS.map(([v, l]) => `<option value="${v}"${calApp() === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
@@ -1276,6 +1285,7 @@ function viewSettings(){
   const q = id => document.getElementById(id);
   q("st_name").onclick = pickMe;
   if (q("st_verify")) q("st_verify").onclick = () => verifySheet(canonN(me));
+  if (q("st_mylink")) q("st_mylink").onclick = () => copy(linkFor(TOKEN));
   if (q("st_inst")) q("st_inst").onclick = installBot;
   if (q("pushon")) q("pushon").onclick = enablePush;
   if (q("pinst")) q("pinst").onclick = installBot;
@@ -1444,6 +1454,8 @@ function viewAdmin(){
         ${wpend.map(([w, ks, why]) => `<span class="warn">שבוע ${dm(w)}, חסימה רביעית ומעלה: ${lbl(ks)}${why ? ` · "${esc(why)}"` : ""} <button class="mebtn" data-apw="${esc(n)}|${iso(w)}">אשר</button></span>`).join("")}</div>
         ${g.token ? `<a class="cal" target="_blank" rel="noopener" href="${waLink(`היי ${first(n)} 👋\nזה הקישור האישי שלך לאפליקציית הבונקר: אילוצים, התבנית השבועית שלך ואישור משמרות.\n${linkFor(g.token)}\nהקישור אישי, אל תעביר אותו.`)}">שלח</a><button class="cal" data-cpl="${esc(n)}">העתק</button>` : `<button class="cal" data-mk="${esc(n)}">צור קישור</button>`}
         <button class="cal" data-kind="${esc(n)}">${kind === "קבוע" ? "← מתגבר" : "← קבוע"}</button></li>`; };
+    h += `<div class="card"><h3>אישור שומר בלי הבוט</h3><p class="hint" style="margin:0">כשהבוט לא מחובר, השומר מקבל במסך קוד בן 8 תווים. אשר רק אם אתה בטוח שזה הוא.</p>
+      <form id="pairf" style="display:flex;gap:8px"><input id="pairc" type="text" autocomplete="off" autocapitalize="none" maxlength="8" placeholder="קוד מהשומר" style="direction:ltr;text-align:center;letter-spacing:3px"><button class="btn pri" style="min-width:90px;flex:none">אשר</button></form><p class="hint" id="pairst" style="margin:0"></p></div>`;
     const pm = Object.entries(ADOC.pendingManual || {});
     if (pm.length) h += `<div class="card"><h3>ממתינים לאישור שלך</h3><p class="hint">ביקשו להצטרף, ולבוט אין את הוואטסאפ שלהם. אשר רק אם אתה בטוח שזה הם.</p>${pm.map(([t, n]) => `<div class="opt"><div class="s"><b>${esc(n)}</b></div><button class="cal" data-pmok="${t}">אשר</button><button class="cal" data-pmno="${t}">דחה</button></div>`).join("")}</div>`;
     const TL = [...new Set(DIR.people.map(p => p.team).filter(Boolean))], AL = ADOC.alloc = ADOC.alloc || {};
@@ -1524,6 +1536,22 @@ function viewAdmin(){
   view.querySelectorAll("[data-pmok]").forEach(b => b.onclick = async () => { const t = b.dataset.pmok, n = ADOC.pendingManual[t];
     try { const g = await fsGet("guards/" + t) || {name: n}; g.state = "verified"; g.verified = new Date().toISOString(); await fsSet("guards/" + t, g);
       ADOC.guards = ADOC.guards || {}; ADOC.guards[t] = n; delete ADOC.pendingManual[t]; await saveAdmin(); aState = "idle"; loadAdmin(); } catch(e) { toast("לא נשמר"); } });
+  const pf = document.getElementById("pairf");
+  if (pf) pf.onsubmit = async ev => { ev.preventDefault(); const c = document.getElementById("pairc").value.trim().toLowerCase(), st = document.getElementById("pairst");
+    if (!/^[a-z2-9]{8}$/.test(c)) { st.textContent = "קוד של 8 תווים"; return; }
+    st.textContent = "בודק…";
+    try { const r = await fsGet("guards/pairreq-" + c + "-bunker");
+      if (!r || !r.t || Date.now() - new Date(r.at) > 24 * 3600e3) { st.textContent = "קוד לא מוכר או ישן. בקש מהשומר קוד חדש."; return; }
+      const n = canonN(r.name), mine = ADOC.owner || [...teamCore(ADOC), ...teamFloaters(ADOC)].some(x => same(x, n));
+      if (!mine) { st.textContent = `${r.name} לא בצוות שלך. רק ראש הצוות שלו יכול לאשר.`; return; }
+      if (!confirm(`לאשר את ${n}?`)) { st.textContent = ""; return; }
+      const g = await fsGet("guards/" + r.t) || {name: n};
+      ADOC.guards = ADOC.guards || {};
+      const ex = Object.entries(ADOC.guards).find(([t, x]) => same(x, n) && t !== r.t);
+      if (ex) g.redirect = ex[0]; else ADOC.guards[r.t] = n;   // same guard on a new phone: his existing key keeps his data
+      g.state = "verified"; g.verified = new Date().toISOString(); g.by = LEAD_OF[TEAM_LABEL] || TEAM_LABEL;
+      await fsSet("guards/" + r.t, g); await saveAdmin(); st.textContent = `✓ ${n} אושר. אצלו המסך יתעדכן לבד.`;
+    } catch(e) { st.textContent = "אין חיבור לשרת. נסה שוב."; } };
   view.querySelectorAll("[data-pmno]").forEach(b => b.onclick = async () => { delete ADOC.pendingManual[b.dataset.pmno]; await saveAdmin(); viewAdmin(); });
   view.querySelectorAll("[data-appr]").forEach(b => b.onclick = async () => { const g = GDOCS[b.dataset.appr]; g.tplOk = g.tplOk || {};
     Object.keys(g.tpl.cells).forEach(k => { if (g.tpl.cells[k] === 3) g.tplOk[k] = true; });
@@ -1766,7 +1794,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "5aa48cd26195";
+  const BUILD = "2efa6761543f";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
