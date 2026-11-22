@@ -121,16 +121,17 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 .g2{grid-template-columns:74px repeat(4,1fr)}
 .colb{font:inherit;font-size:13px;font-weight:700;color:var(--ink);background:var(--soft);border:1px dashed var(--line);border-radius:8px;padding:4px 2px;cursor:pointer;line-height:1.1}
 .colb small{display:block;font-size:10px;font-weight:400;color:var(--muted)}
-.meter{border:1px solid var(--swap);background:var(--swapbg);border-radius:12px;padding:10px 12px;margin:8px 0;display:grid;gap:8px}
-.meter.ok{border-color:var(--good);background:var(--goodbg)}
-.mtop{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:14px}.mtop span{color:var(--muted);font-size:13px}
-.mbar{display:flex;height:10px;border-radius:6px;overflow:hidden;background:var(--line)}
-.mbar .m3{background:var(--bad)}.mbar .m2{background:var(--swap)}.mbar .m1{background:var(--good)}
-.mchips{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
-.mchip{background:var(--card);border-radius:10px;padding:6px 2px;border:1px solid transparent}
-.mchip b{display:block;font-size:17px}.mchip span{font-size:11px;color:var(--muted);line-height:1.2;display:block}
-.mchip.over{border-color:var(--bad)}.mchip.over b{color:var(--bad)}
-.mtips{margin:0;padding-inline-start:18px;font-size:13px}
+.stick{position:sticky;top:0;z-index:3;background:var(--card);margin:0 -16px;padding:8px 16px;display:grid;gap:8px;border-bottom:1px solid var(--line)}
+.meter{border-radius:10px;padding:8px 10px;display:grid;gap:6px;background:var(--soft);border:1px solid var(--line);transition:background .25s,border-color .25s}
+.meter.ok{background:var(--goodbg);border-color:var(--good)}.meter.warn{background:var(--swapbg);border-color:var(--swap)}.meter.bad{background:var(--badbg);border-color:var(--bad)}
+.mmsg{font-size:14px;font-weight:700;line-height:1.3}
+.mbar{display:flex;height:6px;border-radius:4px;overflow:hidden;background:var(--line)}
+.mbar i{transition:width .25s}.mbar .m3{background:var(--bad)}.mbar .m2{background:var(--swap)}.mbar .m1{background:var(--good)}
+.mrow{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.mc b{color:var(--ink);font-size:15px}.mc.over,.mc.over b{color:var(--bad)}
+@keyframes mflash{0%{transform:scale(1.03)}100%{transform:scale(1)}}.meter.flash{animation:mflash .35s ease-out}
+.msave{margin-inline-start:auto;font-size:12px}
+.why summary{cursor:pointer;list-style:none}.why summary::-webkit-details-marker{display:none}
 .syncbar{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.btn.sm{font-size:13px;padding:8px 10px;min-width:0;flex:1 1 auto}
 .why{background:var(--soft);border-radius:12px;padding:10px 12px;font-size:14px;margin:6px 0}.why ul{margin:4px 0 0;padding-inline-start:18px}
 .g2 .dn{font-size:13px;font-weight:600}.g2 .dn b{display:block;font-size:12px;color:var(--muted);font-weight:400;font-variant-numeric:tabular-nums}
@@ -838,12 +839,12 @@ async function loadGuard(){
 let saveTimer = null, saveMsg = "";
 function saveGuard(){
   if (!GDOC) return;
-  saveMsg = "שומר…"; const el = document.getElementById("savest"); if (el) el.textContent = saveMsg;
+  saveMsg = "שומר…"; document.querySelectorAll("#savest,.savest").forEach(e => e.textContent = saveMsg);
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try { await fsSet("guards/" + TOKEN, GDOC); saveMsg = "✓ נשמר " + hhmm(new Date()); }
     catch(e) { saveMsg = "⚠ לא נשמר. בדוק חיבור ונסה שוב"; }
-    const el2 = document.getElementById("savest"); if (el2) el2.textContent = saveMsg;
+    document.querySelectorAll("#savest,.savest").forEach(e => e.textContent = saveMsg);
   }, 700);
 }
 
@@ -851,8 +852,8 @@ function saveGuard(){
 let consTab = store.get("consTab", "w0");
 let brush = store.get("brush", 3);   // what a tap marks: 1 prefer, 2 prefer not, 3 blocked
 function gridHTML(cells, ws, opts){
-  let h = `<div class="brush" role="radiogroup" aria-label="מה לסמן">${[[3, "⛔ חסום"], [2, "↓ מעדיף שלא"], [1, "↑ מעדיף"]].map(([v, l]) => `<button type="button" role="radio" class="st${v}" data-brush="${v}" aria-checked="${brush === v}">${l}</button>`).join("")}</div>
-    <p class="hint" style="margin:0">בחר מה לסמן, ואז לחיצה אחת על משבצת. לחיצה נוספת מנקה. <b>יום חופש:</b> לחיצה על שם היום.</p>
+  let h = `<div class="stick">${opts && opts.meter || ""}<div class="brush" role="radiogroup" aria-label="מה לסמן">${[[3, "⛔ חסום"], [2, "↓ מעדיף שלא"], [1, "↑ מעדיף"]].map(([v, l]) => `<button type="button" role="radio" class="st${v}" data-brush="${v}" aria-checked="${brush === v}">${l}</button>`).join("")}</div></div>
+    <p class="hint" style="margin:0">לחיצה על משבצת מסמנת, לחיצה נוספת מנקה. <b>כותרת עמודה</b> = כל השבוע. <b>שם היום</b> = יום חופש.</p>
     <div class="grid7 g2"><span></span>${SH.map((s, i) => `<button type="button" class="h colb" data-col="${i}" aria-label="סמן את כל משמרות ה${s} בשבוע">${s}<small>כל העמודה</small></button>`).join("")}`;
   for (let d = 0; d < 7; d++) {
     const day = cells[d + "-all"] || 0, dpend = opts && opts.pend && opts.pend.includes(d + "-all");
@@ -860,7 +861,7 @@ function gridHTML(cells, ws, opts){
     for (let s = 0; s < 4; s++) { const k = d + "-" + s, v = day || cells[k] || 0, fixed = opts && opts.fixed && opts.fixed[k], pend = opts && opts.pend && opts.pend.includes(k);
       h += `<button type="button" class="tg st${v}${day ? " dayc" : ""}" data-g="${k}" aria-label="${DAYN[d]} ${SH[s]}: ${STATE_TXT[v]}">${day ? (day === 2 ? "🌴" : "⛔") : STATES[v]}${pend ? "<small>ממתין</small>" : fixed ? "<small>קבוע</small>" : ""}</button>`; }
   }
-  return h + `</div><p class="hint" style="margin:0">שם היום: 🌴 מבקש חופש ← ⛔ חייב חופש ← ביטול. "מבקש" כמעט תמיד מתקבל. "חייב" נספר כחסימה אחת.</p>`;
+  return h + `</div><p class="hint" style="margin:0">שם היום: 🌴 מבקש חופש ← ⛔ חייב חופש ← ביטול. "חייב" נספר כחסימה אחת.</p>`;
 }
 // Blocks (Nitzan, 20.11): up to 3 a week are approved automatically; the 4th and on wait for Nitzan and count as
 // "prefer not" until he approves. A fixed block he already approved in the template does not use the quota.
@@ -883,21 +884,24 @@ function fillStats(cells, B){
   for (let d = 0; d < 7; d++) for (let s = 0; s < 4; s++) { const v = x[d + "-" + s] || 0; if (v === 3) b++; else if (v === 2) n++; else if (v === 1) p++; }
   return {b, n, p, e: 28 - b - n - p, units: B.blocks.length, open: 28 - b - n};
 }
+// Live meter (Nitzan, 22.11): sticks to the top of the grid together with the brush, so the guard sees where he
+// stands on every tap. One line of status (the single most important fix), 4 counters vs the benchmark, save state.
+let lastMeter = "";
+function meterMsg(f){
+  if (f.e === 28) return ["", "התחל לסמן רק מה שחשוב לך. ריק = אפשרי לי"];
+  if (f.units > BENCH.block) return ["bad", `⛔ ${f.units} חסימות: 3 עוברות אוטומטית, ${f.units - 3 === 1 ? "אחת ממתינה" : (f.units - 3) + " ממתינות"} לאישור ראש הצוות`];
+  if (f.n > BENCH.not) return ["warn", `↓ יותר מדי "מעדיף שלא" (${f.n}). השאר עד 10, רק מה שבאמת קשה`];
+  if (f.open < BENCH.open) return ["warn", `נשארו רק ${f.open} משמרות פתוחות. צריך לפחות ${BENCH.open}`];
+  if (f.p < BENCH.pref) return ["", `עוד ${BENCH.pref - f.p} "מעדיף" ואתה מסודר`];
+  return ["ok", "✓ מאוזן. אפשר לסיים, הכל נשמר לבד"];
+}
 function meterHTML(cells, B){
-  const f = fillStats(cells, B), pct = v => (v / 28 * 100).toFixed(1) + "%", marked = 28 - f.e;
-  const tips = [];
-  if (f.units > BENCH.block) tips.push(`${f.units} חסימות: רק 3 מאושרות אוטומטית. השאר מחכות לראש הצוות.`);
-  if (f.n > BENCH.not) tips.push(`${f.n} "מעדיף שלא" זה הרבה. השאר רק את מה שבאמת קשה לך, אחרת ההעדפות שלך מאבדות משקל.`);
-  if (f.open < BENCH.open) tips.push(`נשארו רק ${f.open} משמרות פתוחות. כדי שיהיה ממה לבנות לך 5 משמרות טובות, צריך לפחות ${BENCH.open}.`);
-  if (f.p < BENCH.pref) tips.push(`סמן לפחות ${BENCH.pref} משמרות "מעדיף", כדי שהסידור ידע איפה לשים אותך.`);
-  const ok = !tips.length;
-  const chip = (cls, ic, v, lim, lab) => `<div class="mchip ${cls}${lim ? "" : " over"}"><b>${ic} ${v}</b><span>${lab}</span></div>`;
-  return `<div class="meter${ok ? " ok" : ""}">
-    <div class="mtop"><b>${ok ? "✓ מאוזן, אפשר להשאיר ככה" : "כמעט, שווה לתקן"}</b><span>סימנת ${marked} מתוך 28 משבצות (${Math.round(marked / 28 * 100)}%)</span></div>
+  const f = fillStats(cells, B), [cls, msg] = meterMsg(f), pct = v => (v / 28 * 100).toFixed(1) + "%";
+  const c = (k, ic, v, lim, over) => `<span class="mc ${k}${over ? " over" : ""}">${ic} <b>${v}</b>${lim}</span>`;
+  return `<div class="meter ${cls}" aria-live="polite">
+    <div class="mmsg">${msg}</div>
     <div class="mbar" aria-hidden="true"><i class="m3" style="width:${pct(f.b)}"></i><i class="m2" style="width:${pct(f.n)}"></i><i class="m1" style="width:${pct(f.p)}"></i></div>
-    <div class="mchips">${chip("c3", "⛔", f.units, f.units <= BENCH.block, "חסימות · עד 3")}${chip("c2", "↓", f.n, f.n <= BENCH.not, "מעדיף שלא · עד 10")}${chip("c1", "↑", f.p, f.p >= BENCH.pref, "מעדיף · 5 ומעלה")}${chip("c0", "○", f.e, true, "ריק = אפשרי לי")}</div>
-    ${ok ? "" : `<ul class="mtips">${tips.map(t => `<li>${t}</li>`).join("")}</ul>`}
-    <p class="hint" style="margin:0">לא צריך למלא את כל המשבצות. משבצת ריקה = "אפשרי לי", וזה הכי עוזר לבנות סידור הוגן.</p></div>`;
+    <div class="mrow">${c("c3", "⛔", f.units, "/3", f.units > BENCH.block)}${c("c2", "↓", f.n, "/10", f.n > BENCH.not)}${c("c1", "↑", f.p, "", false)}${c("c0", "ריק", f.e, "", false)}<span class="msave" id="savest">${esc(saveMsg)}</span></div></div>`;
 }
 const sameCells = (a, b) => JSON.stringify(Object.entries(a || {}).sort()) === JSON.stringify(Object.entries(b || {}).sort());
 const nCells = c => Object.keys(c || {}).length;
@@ -926,7 +930,7 @@ function viewCons(){
     const lk = lockAt(ws);
     h += `<div class="card"><h3>${dm(ws)} עד ${dm(addDays(ws, 6))} · ננעל ב${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00</h3>
       <p class="hint">${nCells(G.tpl.cells) ? "מתחיל מהתבנית הקבועה שלך. שנה רק מה שחורג השבוע." : "סמן רק מה שחשוב לך. כל השאר נשאר ריק."}</p>
-      ${meterHTML(C.cells, B)}${gridHTML(C.cells, ws, {fixed: G.tplOk || {}, pend: B.pend})}
+      ${gridHTML(C.cells, ws, {fixed: G.tplOk || {}, pend: B.pend, meter: meterHTML(C.cells, B)})}
       <div class="syncbar">${nCells(G.tpl.cells) && !sameCells(C.cells, G.tpl.cells) ? `<button type="button" class="btn sec sm" data-sync="tpl2wk">↺ להתחיל מחדש מהתבנית</button>` : ""}
         ${nCells(C.cells) && !sameCells(C.cells, G.tpl.cells) ? `<button type="button" class="btn sec sm" data-sync="wk2tpl">📌 לשמור את השבוע כתבנית קבועה</button>` : ""}
         ${nCells(C.cells) ? `<button type="button" class="btn sec sm" data-sync="clear">✕ לנקות הכל</button>` : ""}</div>
@@ -934,28 +938,28 @@ function viewCons(){
       ${B.pend.length ? `<div class="alert sw">${B.pend.length === 1 ? "חסימה אחת" : B.pend.length + " חסימות"} מעבר ל־3 מחכות לאישור של ראש הצוות. עד האישור הן נחשבות "מעדיף שלא".</div>
         <label class="f">למה צריך יותר מ־3? (רק ראש הצוות רואה)<textarea id="creason">${esc(C.reasons || "")}</textarea></label>` : ""}
       <label class="f">הערה לראש הצוות (לא חובה)<textarea id="cnote2" placeholder="למשל: מעדיף לא שני לילות ברצף">${esc(C.note || "")}</textarea></label>
-      <p class="hint" id="savest">${esc(saveMsg || (C.at ? "✓ נשמר" : "עוד לא שמרת שינוי"))}</p></div>`;
+      </div>`;
   } else if (consTab === "tpl") {
     const fixedOk = G.tplOk || {}, B = blockSplit(G.tpl.cells, fixedOk, false), P = G.prof;
     const wk0 = G.cons[iso(W[0])];
     h += `<div class="card"><h3>התבנית השבועית האידיאלית שלך</h3>
-      <div class="why"><b>למה זה חשוב?</b><ul>
-        <li><b>ממלאים פעם אחת.</b> כל שבוע חדש נפתח ממנה, ונשאר רק לשנות חריגים.</li>
-        <li><b>שכחת להגיש עד ראשון 20:00?</b> הסידור נבנה לפי התבנית. בלי תבנית, אתה נחשב פנוי לכל משמרת.</li>
-        <li><b>חסימה קבועה שראש הצוות אישר פעם אחת</b> לא נספרת שוב במכסת 3 החסימות של כל שבוע.</li></ul></div>
+      <details class="why"><summary><b>💡 למה למלא תבנית?</b> ממלאים פעם אחת, וכל שבוע נפתח ממנה.</summary><ul>
+        <li>שכחת להגיש עד ראשון 20:00? משבצים אותך לפי התבנית. בלי תבנית אתה נחשב פנוי לכל משמרת.</li>
+        <li>חסימה קבועה שראש הצוות אישר פעם אחת לא נספרת שוב במכסת 3 החסימות.</li></ul></details>
       <p class="hint">שישי ושבת בסבב לפי הוגנות: סמן שם רק מה שבאמת לא אפשרי.</p>
       ${!nCells(G.tpl.cells) && wk0 && nCells(wk0.cells) ? `<button type="button" class="btn pri" data-sync="wk2tpl" style="width:100%;margin-bottom:10px">⚡ למלא מהאילוצים של שבוע ${dm(W[0])}</button>` : ""}
-      ${meterHTML(G.tpl.cells, B)}${gridHTML(G.tpl.cells, null, {fixed: fixedOk, pend: B.pend})}
+      ${gridHTML(G.tpl.cells, null, {fixed: fixedOk, pend: B.pend, meter: meterHTML(G.tpl.cells, B)})}
       <div class="syncbar">${!sameCells(G.tpl.cells, (wk0 || {}).cells) && wk0 && nCells(wk0.cells) && nCells(G.tpl.cells) ? `<button type="button" class="btn sec sm" data-sync="wk2tpl">⚡ להעתיק מהשבוע של ${dm(W[0])}</button>` : ""}
         ${nCells(G.tpl.cells) ? `<button type="button" class="btn sec sm" data-sync="clear">✕ לנקות הכל</button>` : ""}</div>
-      ${B.pend.length ? `<div class="alert sw">${B.pend.length === 1 ? "חסימה אחת" : B.pend.length + " חסימות"} מעבר ל־3 מחכות לאישור של ראש הצוות. עד האישור הן נחשבות "מעדיף שלא".</div>` : ""}</div>
+      </div>
     <div class="card"><h3>העדפות קבועות</h3><p class="hint">כל שומר עושה 5 משמרות בשבוע עם 2 ימי חופש. משמרת כפולה אסורה לפי נוהלי הבונקר.</p>
       <label class="f">לילות<select id="pf_np">${[[-1,"מעדיף כמה שפחות לילות"],[0,"ניטרלי"],[1,"מעדיף לילות"]].map(([v,l]) => `<option value="${v}"${P.nightPref == v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
       <label class="f">מקסימום לילות בשבוע<select id="pf_n">${[0,1,2,3].map(v => `<option${P.maxN == v ? " selected" : ""}>${v}</option>`).join("")}</select></label>
       <label class="f">הערה כללית על הסידור (לא חובה)<textarea id="pf_note" placeholder="למשל: מאוד נוח לי משמרות צהריים">${esc(P.note || "")}</textarea></label>
-      <p class="hint" id="savest">${esc(saveMsg)}</p></div>`;
+      <p class="hint savest">${esc(saveMsg)}</p></div>`;
   }
-  view.innerHTML = h;
+  const y0 = window.scrollY; view.innerHTML = h; window.scrollTo(0, y0);   // a tap re-renders; keep the guard where he was
+  { const m = view.querySelector(".mmsg"); if (m && lastMeter && m.textContent !== lastMeter) m.parentElement.classList.add("flash"); lastMeter = m ? m.textContent : ""; }
   view.querySelectorAll("[data-ct]").forEach(b => b.onclick = () => { consTab = b.dataset.ct; store.set("consTab", consTab); saveMsg = ""; viewCons(); });
   const touch = () => { const t = new Date().toISOString(); if (consTab.startsWith("w")) G.cons[iso(W[consTab === "w0" ? 0 : 1])].at = t; saveGuard(); };
   view.querySelectorAll("[data-brush]").forEach(b => b.onclick = () => { brush = +b.dataset.brush; store.set("brush", brush); viewCons(); });
@@ -1626,7 +1630,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "34e4472cb866";
+  const BUILD = "e185c486f56e";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
