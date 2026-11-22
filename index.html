@@ -132,6 +132,8 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 @keyframes mflash{0%{transform:scale(1.03)}100%{transform:scale(1)}}.meter.flash{animation:mflash .35s ease-out}
 .msave{margin-inline-start:auto;font-size:12px}
 .gaps{border-color:var(--bad)}
+td.fair{background:var(--soft);outline:2px dashed var(--acc);outline-offset:-3px}td.fair small{display:block;font-size:10px;color:var(--acc);font-weight:700}
+.fairc{border-color:var(--acc)}.fairrow{display:grid;grid-template-columns:70px 1fr;gap:8px;border-top:1px solid var(--line);padding-top:8px;font-size:14px}
 .shabt td{font-size:12px;line-height:1.35;white-space:nowrap}.shabt td b{color:var(--ink)}.shabt td span{color:var(--muted)}
 .flist{display:grid;gap:6px}.frow{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:grid;gap:6px}.frow.on{border-color:var(--good);background:var(--goodbg)}
 .fhd{display:flex;justify-content:space-between;align-items:center}
@@ -1399,9 +1401,11 @@ function draftText(d){
   for (let dd = 0; dd < 7; dd++) {
     const w = [0, 1, 2, 3].map(s => d.out[dd*4 + s] < 0 ? "?" : d.names[d.out[dd*4 + s]]);
     const off = d.names.filter((n, i) => d.people[i].cnt && !w.includes(n));
-    t += `\n*${DAYN[dd]} ${dm(addDays(ws, dd))}*\n` + SH.map((s, i) => `${s}: ${w[i]}`).join(" | ") + (off.length ? `\nחופש: ${off.join(", ")}` : "");
+    const FSk = new Set(fairSlots(d).map(f => f.k));
+    t += `\n*${DAYN[dd]} ${dm(addDays(ws, dd))}*\n` + SH.map((s, i) => `${s}: ${w[i]}${FSk.has(dd + "-" + i) ? " ⚖" : ""}`).join(" | ") + (off.length ? `\nחופש: ${off.join(", ")}` : "");
   }
   if (d.kpi.three.length) t += `\n\n${d.kpi.three.join(" ו־")} 3 ימי חופש`;
+  if (fairSlots(d).length) t += `\n\n⚖ = אין מתנדב למשמרת שבת, שובץ לפי ספר ההוגנות (מי שהכי מזמן לא עשה שבת)`;
   return t;
 }
 let aWeek = 0, aPost = "", aCaps = {};
@@ -1598,15 +1602,30 @@ function gapsHTML(d, ws){
     ${rows}
     <p class="hint" style="margin:0">לסגירה: הקצה משמרות למתגבר (טבלת המתגברים למעלה) ובנה שוב, או בקש משומר לפתוח חסימה.</p></div>`;
 }
+// Shabbat slots no volunteer covered (Nitzan, 22.11): show plainly that the fairness book decided, and why this guard.
+function fairSlots(d){
+  return SHAB.map(k => { const [dd, s] = k.split("-").map(Number), pi = d.out[dd * 4 + s]; if (pi < 0) return null;
+    const p = d.people[pi]; if ((p.cells[k] || 0) === 1) return null;
+    return {k, dd, s, p, others: d.people.filter(o => o.n !== p.n && o.kind === "core")}; }).filter(Boolean);
+}
+const agoTxt = h => !h || h.ago == null ? "לא עשה שבת ב־" + LED.weeks.length + " שבועות" : h.ago === 1 ? "עשה שבת בשבוע שעבר" : "שבת אחרונה לפני " + h.ago + " שבועות";
+function fairHTML(d){
+  const F = fairSlots(d); if (!F.length) return "";
+  return `<div class="card fairc"><h3>⚖ שובץ לפי ספר ההוגנות</h3>
+    <p class="hint" style="margin:0">במשבצות האלה אף אחד פנוי לא סימן "מעדיף", אז לא הצלחתי לשבץ רק מתנדבים. ההחלטה היא לפי התור: מי שהכי מזמן לא עשה שבת.</p>
+    ${F.map(f => `<div class="fairrow"><div class="gapk">${DAYN[f.dd]}<b>${SH[f.s]}</b></div><div><b>${esc(f.p.n)}</b>: ${agoTxt(f.p.shab)}${f.p.cells[f.k] === 2 ? ' (סימן "מעדיף שלא")' : ""}.
+      <div class="gpl" style="margin-top:4px">${f.others.map(o => { const v = o.cells[f.k] || 0; const busy = o.shabNow.filter(x => x !== f.k).length, full = o.cnt >= o.cap; return `<span class="gp${v === 3 ? " bad" : ""}">${esc(o.n)} · ${v === 3 ? "חסום" : busy ? "כבר בשבת השבוע" : agoTxt(o.shab).replace("עשה שבת ", "").replace("שבת אחרונה ", "") + (full ? ", כבר 5" : "")}</span>`; }).join("")}</div></div></div>`).join("")}</div>`;
+}
 function drawDraft(){
   const d = draft, ws = new Date(d.ws + "T00:00:00"), el = document.getElementById("aout"); if (!el) return;
-  const cellCls = (pi, dd, s) => { if (pi < 0) return "bad"; const p = d.people[pi]; const k = `${DAYN[dd]} ${SH[s]}`; return p.broke.includes(k) ? "sw" : p.got.includes(k) ? "lv" : ""; };
+  const FS = new Set(fairSlots(d).map(f => f.k));
+  const cellCls = (pi, dd, s) => { if (pi < 0) return "bad"; if (FS.has(dd + "-" + s)) return "fair"; const p = d.people[pi]; const k = `${DAYN[dd]} ${SH[s]}`; return p.broke.includes(k) ? "sw" : p.got.includes(k) ? "lv" : ""; };
   let t = gapsHTML(d, ws) + `<div class="card"><div class="stats s4"><div><b>${d.kpi.hard ? "⚠ " + d.kpi.hard : "100%"}</b><span>אילוצים קשיחים</span></div><div><b>${d.kpi.softPct}%</b><span>"מעדיף שלא" כובדו</span></div><div><b>${d.kpi.nights}</b><span>לילות לקבוע</span></div><div><b>${d.kpi.floaterShifts}</b><span>משמרות מתגבר</span></div></div>
     ${d.kpi.three.length ? `<p class="hint">3 ימי חופש: <b>${d.kpi.three.map(esc).join(", ")}</b> (לפי התור).</p>` : ""}
     ${d.flags.length ? `<div class="alert bad"><b>חוקים שנשברו</b><ul>${d.flags.slice(0, 8).map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>` : `<span class="pill ok">✓ כל החוקים נשמרו: עד 5 משמרות, 2 ימי חופש, אין מנוחה של 6 שעות</span>`}</div>`;
   t += `<div class="card flush"><div class="tw"><table><thead><tr><th style="width:64px">${esc(d.post)}</th>${SH.map(s => `<th>${s}</th>`).join("")}</tr></thead><tbody>`;
-  for (let dd = 0; dd < 7; dd++) t += `<tr><th>${DAYN[dd]}<small>${dm(addDays(ws, dd))}</small></th>${[0, 1, 2, 3].map(s => { const pi = d.out[dd*4 + s]; return `<td class="${cellCls(pi, dd, s)}">${pi < 0 ? "<b>חסר</b>" : esc(d.names[pi])}</td>`; }).join("")}</tr>`;
-  t += `</tbody></table></div></div><p class="hint">ירוק = קיבל משמרת שביקש · כתום = "מעדיף שלא" שנשבר · אדום = חסר שומר (אף אחד לא משובץ ליותר מ־5)</p>`;
+  for (let dd = 0; dd < 7; dd++) t += `<tr><th>${DAYN[dd]}<small>${dm(addDays(ws, dd))}</small></th>${[0, 1, 2, 3].map(s => { const pi = d.out[dd*4 + s]; return `<td class="${cellCls(pi, dd, s)}">${pi < 0 ? "<b>חסר</b>" : esc(d.names[pi]) + (FS.has(dd + "-" + s) ? "<small>⚖ הוגנות</small>" : "")}</td>`; }).join("")}</tr>`;
+  t += `</tbody></table></div></div><p class="hint">ירוק = קיבל משמרת שביקש · ⚖ = שבת לפי ספר ההוגנות (אין מתנדב) · כתום = "מעדיף שלא" שנשבר · אדום = חסר שומר (אף אחד לא משובץ ליותר מ־5)</p>` + fairHTML(d);
   t += `<div class="card flush"><div class="tw"><table><thead><tr><th style="text-align:start;width:96px">שומר</th><th>משמרות</th><th>לילות</th><th>שישי</th><th>שבת</th><th>חופש</th></tr></thead><tbody>
     ${d.people.map(p => `<tr><th>${esc(p.n)}${p.kind === "floater" ? "<small>מתגבר</small>" : ""}</th><td>${p.cnt}</td><td>${p.nt}<small>${p.led.nt} ב־${LED.weeks.length} שב׳</small></td><td>${p.fri}</td><td>${p.sat}<small>${p.led.sat} ב־${LED.weeks.length} שב׳</small></td><td>${p.off}</td></tr>`).join("")}</tbody></table></div></div>`;
   t += `<div class="card"><h3>למה כל אחד קיבל את מה שקיבל</h3>${d.people.filter(p => p.cnt).map(p => `<p class="hint"><b>${esc(p.n)}:</b> ${p.pref ? `קיבל ${p.got.length} מתוך ${p.pref} "מעדיף". ` : ""}${p.broke.length ? `"מעדיף שלא" שנשבר: ${p.broke.join(", ")} (אין חלופה בלי לשבור חוק). ` : ""}לילות ב־${LED.weeks.length} שבועות: ${p.led.nt}. ${p.shabNow.length ? `שבת: ${p.shabNow.map(slotTxt).join(", ")}${p.shab && p.shab.ago != null ? ` (קודם: לפני ${p.shab.ago} שבועות)` : ""}.` : p.shab && p.shab.ago === 1 ? "לא בשבת, כי היה בשבוע שעבר." : ""}${p.kind === "core" ? (p.off >= 3 ? " 3 ימי חופש השבוע." : "") : " מתגבר."}${((GDOCS[p.n] || {}).prof || {}).note ? ` 💬 "${esc(GDOCS[p.n].prof.note)}"` : ""}</p>`).join("")}</div>`;
@@ -1728,7 +1747,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "b79d9c0fb665";
+  const BUILD = "08590c4f9398";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
