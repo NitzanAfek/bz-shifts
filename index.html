@@ -1186,10 +1186,20 @@ function verifySheet(name){
     sh.querySelector("#vform").onsubmit = async ev => { ev.preventDefault(); const v = sh.querySelector("#vcode").value.trim(); if (!/^\d{6}$/.test(v)) return;
       draw(`<p class="hint">בודק…</p>`); try { const g = await fsGet("guards/" + tok); g.code = v; g.state = "checking"; await fsSet("guards/" + tok, g); last = "checking"; } catch(e) { codeForm(tok, false); } };
   }
+  const t0 = Date.now(); let hbShown = "";
+  async function waitNote(){   // still no code: is the bot awake? (22.11, Omer waited 9 minutes while the Mac slept)
+    let hb = null; try { hb = await fsGet("guards/bz-bot-heartbeat-status"); } catch(e) {}
+    const at = hb && hb.at ? new Date(hb.at) : null, down = !at || Date.now() - at > 3 * 60e3, key = down ? "down" : "slow";
+    if (key === hbShown) return; hbShown = key;
+    draw(down ? `<div class="alert sw"><b>הבוט ששולח את הקודים לא מחובר כרגע${at ? " (מאז " + hhmm(at) + ")" : ""}.</b><br>הבקשה שלך שמורה. הקוד יגיע לוואטסאפ אוטומטית ברגע שהבוט יחזור, בלי לבקש שוב.</div>
+      <p class="hint">אפשר לסגור. כשהקוד יגיע: ⚙ הגדרות ← אמת אותי, או פשוט לחיצה על הקישור שבהודעה.</p>`
+      : `<p class="hint">הבוט מחובר ושולח את הקוד. עוד רגע…</p><p class="hint">לא הגיע תוך 2 דקות? כתוב לניצן.</p>`);
+  }
   async function poll(tok){
     while (!stop) {
       let g = null; try { g = await fsGet("guards/" + tok); } catch(e) {}
       const st = (g && g.state) || "";
+      if (st === "pending" && Date.now() - t0 > 20000) await waitNote();
       if (st !== last) { last = st;
         if (st === "verified") { const k = g.redirect || tok; store.set("k", k); store.set("kp", null); store.set("me", name);
           draw(`<p class="big">✓ אומת</p><p class="hint">האילוצים, האישורים וההתראות שלך נשמרים מעכשיו.</p>`); setTimeout(() => location.reload(), 1300); return; }
@@ -1714,7 +1724,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "7c9f605f9abb";
+  const BUILD = "57fdd1a7ac89";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
