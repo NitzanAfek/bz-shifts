@@ -132,6 +132,10 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 @keyframes mflash{0%{transform:scale(1.03)}100%{transform:scale(1)}}.meter.flash{animation:mflash .35s ease-out}
 .msave{margin-inline-start:auto;font-size:12px}
 .gaps{border-color:var(--bad)}
+tr.offrow td{text-align:start;background:var(--bg);padding:4px 8px 8px;border-top:0}
+.offrow .ol{font-size:12px;color:var(--muted);margin-inline-end:6px}
+.oc{display:inline-block;font-size:12px;border-radius:999px;padding:2px 8px;margin:2px;background:var(--soft);color:var(--ink)}
+.oc.ok{background:var(--goodbg);color:var(--good);font-weight:700}.oc.bad{background:var(--badbg);color:var(--bad);font-weight:700}
 td.fair{background:var(--soft);outline:2px dashed var(--acc);outline-offset:-3px}td.fair small{display:block;font-size:10px;color:var(--acc);font-weight:700}
 .fairc{border-color:var(--acc)}.fairrow{display:grid;grid-template-columns:70px 1fr;gap:8px;border-top:1px solid var(--line);padding-top:8px;font-size:14px}
 .shabt td{font-size:12px;line-height:1.35;white-space:nowrap}.shabt td b{color:var(--ink)}.shabt td span{color:var(--muted)}
@@ -1335,7 +1339,8 @@ function schedule(ws, post, people, opt){
       const sk = sl.d + "-" + sl.s, shab = SHAB.includes(sk);
       // Shabbat rotation (Nitzan + Eliran, 22.11): everyone marks Friday evening to Saturday noon "prefer not", so there it
       // barely counts and the fairness book decides. A volunteer ("prefer", like Omer) gets them first.
-      if (v === 2) cost += shab ? 0.5 : 3; if (v === 1) cost -= shab ? 3 : 1;
+      const askDay = [0, 1, 2, 3].every(q => (p.cells[sl.d + "-" + q] || 0) >= 2);   // a whole day asked off keeps its full weight, also on Shabbat
+      if (v === 2) cost += askDay ? 4 : shab ? 0.5 : 3; if (v === 1) cost -= shab ? 3 : 1;
       if (sl.s === 3) { if (p.prof.nightPref === 1) cost -= 1; if (p.prof.nightPref === -1) cost += 3; }
       if (p.kind === "floater") cost += 1;
       if (shab && p.shab && v !== 1) {   // Shabbat by history: last week = 6, two weeks ago = 3, the same slot as last week = 4 more
@@ -1370,7 +1375,7 @@ function schedule(ws, post, people, opt){
       const cand = people.map((p, i) => i).filter(i => ok(people[i], sl) && !st[i].days.has(sl.d) && st[i].cnt < people[i].cap);
       if (!cand.length) continue;
       const shabK = SHAB.includes(sl.d + "-" + sl.s), agoP = i => { const h = people[i].shab; return !shabK || !h ? 0 : h.ago === 1 ? 12 : h.ago === 2 ? 6 : 0; };
-      const sc = i => st[i].cnt * 8 + (people[i].cells[sl.d + "-" + sl.s] === 2 ? (shabK ? 1 : 10) : 0) - (people[i].cells[sl.d + "-" + sl.s] === 1 ? (shabK ? 12 : 6) : 0) + agoP(i) + (sl.s === 3 ? st[i].nt * 3 : 0) + (people[i].kind === "floater" ? 6 : 0) + Math.random() * 8;
+      const sc = i => st[i].cnt * 8 + (people[i].cells[sl.d + "-" + sl.s] === 2 ? (shabK && ![0, 1, 2, 3].every(q => (people[i].cells[sl.d + "-" + q] || 0) >= 2) ? 1 : 10) : 0) - (people[i].cells[sl.d + "-" + sl.s] === 1 ? (shabK ? 12 : 6) : 0) + agoP(i) + (sl.s === 3 ? st[i].nt * 3 : 0) + (people[i].kind === "floater" ? 6 : 0) + Math.random() * 8;
       const i = cand.sort((a, b) => sc(a) - sc(b))[0]; out[sl.i] = i; st[i].cnt++; st[i].days.add(sl.d); if (sl.s === 3) st[i].nt++;
     }
     const e = evaluate(out); if (!best || e.cost < best.cost) best = Object.assign(e, {out});
@@ -1616,6 +1621,12 @@ function fairHTML(d){
     ${F.map(f => `<div class="fairrow"><div class="gapk">${DAYN[f.dd]}<b>${SH[f.s]}</b></div><div><b>${esc(f.p.n)}</b>: ${agoTxt(f.p.shab)}${f.p.cells[f.k] === 2 ? ' (סימן "מעדיף שלא")' : ""}.
       <div class="gpl" style="margin-top:4px">${f.others.map(o => { const v = o.cells[f.k] || 0; const busy = o.shabNow.filter(x => x !== f.k).length, full = o.cnt >= o.cap; return `<span class="gp${v === 3 ? " bad" : ""}">${esc(o.n)} · ${v === 3 ? "חסום" : busy ? "כבר בשבת השבוע" : agoTxt(o.shab).replace("עשה שבת ", "").replace("שבת אחרונה ", "") + (full ? ", כבר 5" : "")}</span>`; }).join("")}</div></div></div>`).join("")}</div>`;
 }
+// Day-off request = the whole day marked off in his constraints (stored per shift after expandDays): 2 asks, 3 must.
+const dayReq = (p, dd) => { const v = [0, 1, 2, 3].map(s => p.cells[dd + "-" + s] || 0); return v.every(x => x >= 2) ? Math.max(...v) : 0; };
+function offOf(d, pi){ const p = d.people[pi], work = new Set(); d.out.forEach((x, i) => { if (x === pi) work.add(Math.floor(i / 4)); });
+  const off = [0,1,2,3,4,5,6].filter(dd => !work.has(dd)), asked = [0,1,2,3,4,5,6].filter(dd => dayReq(p, dd));
+  return {off, asked, got: asked.filter(dd => !work.has(dd)), denied: asked.filter(dd => work.has(dd))}; }
+const d1 = dd => DAYN[dd].slice(0, 1) + "׳";
 function drawDraft(){
   const d = draft, ws = new Date(d.ws + "T00:00:00"), el = document.getElementById("aout"); if (!el) return;
   const FS = new Set(fairSlots(d).map(f => f.k));
@@ -1624,10 +1635,18 @@ function drawDraft(){
     ${d.kpi.three.length ? `<p class="hint">3 ימי חופש: <b>${d.kpi.three.map(esc).join(", ")}</b> (לפי התור).</p>` : ""}
     ${d.flags.length ? `<div class="alert bad"><b>חוקים שנשברו</b><ul>${d.flags.slice(0, 8).map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>` : `<span class="pill ok">✓ כל החוקים נשמרו: עד 5 משמרות, 2 ימי חופש, אין מנוחה של 6 שעות</span>`}</div>`;
   t += `<div class="card flush"><div class="tw"><table><thead><tr><th style="width:64px">${esc(d.post)}</th>${SH.map(s => `<th>${s}</th>`).join("")}</tr></thead><tbody>`;
-  for (let dd = 0; dd < 7; dd++) t += `<tr><th>${DAYN[dd]}<small>${dm(addDays(ws, dd))}</small></th>${[0, 1, 2, 3].map(s => { const pi = d.out[dd*4 + s]; return `<td class="${cellCls(pi, dd, s)}">${pi < 0 ? "<b>חסר</b>" : esc(d.names[pi]) + (FS.has(dd + "-" + s) ? "<small>⚖ הוגנות</small>" : "")}</td>`; }).join("")}</tr>`;
-  t += `</tbody></table></div></div><p class="hint">ירוק = קיבל משמרת שביקש · ⚖ = שבת לפי ספר ההוגנות (אין מתנדב) · כתום = "מעדיף שלא" שנשבר · אדום = חסר שומר (אף אחד לא משובץ ליותר מ־5)</p>` + fairHTML(d);
+  const team = d.people.map((p, i) => i).filter(i => d.people[i].kind === "core");
+  for (let dd = 0; dd < 7; dd++) {
+    t += `<tr><th>${DAYN[dd]}<small>${dm(addDays(ws, dd))}</small></th>${[0, 1, 2, 3].map(s => { const pi = d.out[dd*4 + s]; return `<td class="${cellCls(pi, dd, s)}">${pi < 0 ? "<b>חסר</b>" : esc(d.names[pi]) + (FS.has(dd + "-" + s) ? "<small>⚖ הוגנות</small>" : "")}</td>`; }).join("")}</tr>`;
+    const on = new Set([0, 1, 2, 3].map(s => d.out[dd*4 + s])), chips = [];
+    team.forEach(i => { const p = d.people[i], r = dayReq(p, dd);
+      if (!on.has(i)) chips.push(`<span class="oc${r ? " ok" : ""}">${esc(p.n)}${r ? (r === 3 ? " · חייב ✓" : " · ביקש ✓") : ""}</span>`);
+      else if (r) chips.push(`<span class="oc bad">⚠ ${esc(p.n)} ביקש חופש, משובץ</span>`); });
+    t += `<tr class="offrow"><td colspan="5"><span class="ol">🌴 חופש</span>${chips.join("") || '<span class="oc">אף אחד</span>'}</td></tr>`;
+  }
+  t += `</tbody></table></div></div><p class="hint">🌴 = מי בחופש באותו יום, ✓ = ביקש וקיבל, ⚠ = ביקש ולא קיבל · ירוק = קיבל משמרת שביקש · ⚖ = שבת לפי ספר ההוגנות (אין מתנדב) · כתום = "מעדיף שלא" שנשבר · אדום = חסר שומר (אף אחד לא משובץ ליותר מ־5)</p>` + fairHTML(d);
   t += `<div class="card flush"><div class="tw"><table><thead><tr><th style="text-align:start;width:96px">שומר</th><th>משמרות</th><th>לילות</th><th>שישי</th><th>שבת</th><th>חופש</th></tr></thead><tbody>
-    ${d.people.map(p => `<tr><th>${esc(p.n)}${p.kind === "floater" ? "<small>מתגבר</small>" : ""}</th><td>${p.cnt}</td><td>${p.nt}<small>${p.led.nt} ב־${LED.weeks.length} שב׳</small></td><td>${p.fri}</td><td>${p.sat}<small>${p.led.sat} ב־${LED.weeks.length} שב׳</small></td><td>${p.off}</td></tr>`).join("")}</tbody></table></div></div>`;
+    ${d.people.map(p => `<tr><th>${esc(p.n)}${p.kind === "floater" ? "<small>מתגבר</small>" : ""}</th><td>${p.cnt}</td><td>${p.nt}<small>${p.led.nt} ב־${LED.weeks.length} שב׳</small></td><td>${p.fri}</td><td>${p.sat}<small>${p.led.sat} ב־${LED.weeks.length} שב׳</small></td><td>${(o => `${o.off.length}<small>${o.off.map(d1).join(" ")}${o.asked.length ? `<br>ביקש: ${o.asked.map(dd => d1(dd) + (o.got.includes(dd) ? "✓" : "✗")).join(" ")}` : ""}</small>`)(offOf(d, d.people.indexOf(p)))}</td></tr>`).join("")}</tbody></table></div></div>`;
   t += `<div class="card"><h3>למה כל אחד קיבל את מה שקיבל</h3>${d.people.filter(p => p.cnt).map(p => `<p class="hint"><b>${esc(p.n)}:</b> ${p.pref ? `קיבל ${p.got.length} מתוך ${p.pref} "מעדיף". ` : ""}${p.broke.length ? `"מעדיף שלא" שנשבר: ${p.broke.join(", ")} (אין חלופה בלי לשבור חוק). ` : ""}לילות ב־${LED.weeks.length} שבועות: ${p.led.nt}. ${p.shabNow.length ? `שבת: ${p.shabNow.map(slotTxt).join(", ")}${p.shab && p.shab.ago != null ? ` (קודם: לפני ${p.shab.ago} שבועות)` : ""}.` : p.shab && p.shab.ago === 1 ? "לא בשבת, כי היה בשבוע שעבר." : ""}${p.kind === "core" ? (p.off >= 3 ? " 3 ימי חופש השבוע." : "") : " מתגבר."}${((GDOCS[p.n] || {}).prof || {}).note ? ` 💬 "${esc(GDOCS[p.n].prof.note)}"` : ""}</p>`).join("")}</div>`;
   const txt = draftText(d);
   t += `<div class="card"><h3>טיוטה, לא פורסם</h3><div class="actions"><a class="btn wa" target="_blank" rel="noopener" href="${waLink(txt)}">שלח בוואטסאפ</a><button type="button" class="btn sec" id="acp">העתק</button><button type="button" class="btn sec" id="asave">שמור טיוטה</button></div>
@@ -1747,7 +1766,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "08590c4f9398";
+  const BUILD = "5aa48cd26195";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
