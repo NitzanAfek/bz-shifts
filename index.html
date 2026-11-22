@@ -132,6 +132,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 @keyframes mflash{0%{transform:scale(1.03)}100%{transform:scale(1)}}.meter.flash{animation:mflash .35s ease-out}
 .msave{margin-inline-start:auto;font-size:12px}
 .gaps{border-color:var(--bad)}
+.shabt td{font-size:12px;line-height:1.35;white-space:nowrap}.shabt td b{color:var(--ink)}.shabt td span{color:var(--muted)}
 .flist{display:grid;gap:6px}.frow{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:grid;gap:6px}.frow.on{border-color:var(--good);background:var(--goodbg)}
 .fhd{display:flex;justify-content:space-between;align-items:center}
 .step{display:flex;align-items:center;gap:10px}.step button{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--card);font:inherit;font-size:18px;cursor:pointer}
@@ -807,6 +808,18 @@ function ledgerOf(n){
     if (LED.complete[w]) { t.w++; if (x.off >= 3) { t.three++; t.last3 = i; } } });
   return t;
 }
+// Shabbat history (Eliran, 22.11): "every roster I put all the old ones side by side and saw who did Shabbat when".
+// The heavy slots are Friday evening and night and Saturday morning and noon. Per guard: which of them he did in each
+// published week, and how many weeks ago he last did any (counted back from week ws).
+const SHAB = ["5-2", "5-3", "6-0", "6-1"], WKND = ["5-0", "5-1", "5-2", "5-3", "6-0", "6-1", "6-2", "6-3"];
+const slotTxt = k => { const [d, s] = k.split("-"); return (d === "5" ? "ו׳ " : "ש׳ ") + SH[+s]; };
+function shabHist(n, ws){
+  const rows = LED.people[canonN(n)] || {}, out = {weeks: {}, ago: null, agoSlot: {}};
+  LED.weeks.forEach(w => { const x = rows[w]; if (!x) return; const ks = (x.sl || []).map(([d, s]) => d + "-" + s).filter(k => WKND.includes(k));
+    out.weeks[w] = ks; const ago = Math.round((ws - new Date(w + "T00:00:00")) / (7 * 864e5));
+    ks.filter(k => SHAB.includes(k)).forEach(k => { if (out.ago == null || ago < out.ago) out.ago = ago; if (out.agoSlot[k] == null || ago < out.agoSlot[k]) out.agoSlot[k] = ago; }); });
+  return out;
+}
 function teamCore(adm, team){
   if (adm && adm.team && adm.team.core) return adm.team.core;
   const t = team || TEAM_LABEL;
@@ -1298,7 +1311,7 @@ function schedule(ws, post, people, opt){
   q.forEach((p, r) => p.qRank = core.length > 1 ? r / (core.length - 1) : 0);
   const ok = (p, sl) => (p.cells[sl.d + "-" + sl.s] || 0) !== 3;
   function evaluate(out){
-    const st = people.map(() => ({cnt: 0, nt: 0, fri: 0, sat: 0, days: new Set(), sl: []}));
+    const st = people.map(() => ({cnt: 0, nt: 0, fri: 0, sat: 0, vol: 0, days: new Set(), sl: []}));
     let hard = 0, cost = 0, short = 0; const flags = [];
     out.forEach((pi, i) => { const sl = slots[i];
       if (pi < 0) { hard++; flags.push(`${DAYN[sl.d]} ${SH[sl.s]}: אין שומר`); return; }
@@ -1309,6 +1322,11 @@ function schedule(ws, post, people, opt){
       if (v === 2) cost += 3; if (v === 1) cost -= 1;
       if (sl.s === 3) { if (p.prof.nightPref === 1) cost -= 1; if (p.prof.nightPref === -1) cost += 3; }
       if (p.kind === "floater") cost += 1;
+      const sk = sl.d + "-" + sl.s;
+      if (SHAB.includes(sk) && p.shab && v !== 1) {   // Shabbat by history: last week = 6, two weeks ago = 3, the same slot as last week = 4 more
+        if (p.shab.ago === 1) cost += 6; else if (p.shab.ago === 2) cost += 3;
+        if (p.shab.agoSlot[sk] === 1) cost += 4; }
+      if (SHAB.includes(sk) && v === 1) x.vol++;   // volunteered (marked "prefer"): not counted against him in fairness
       x.days.add(sl.d); x.cnt++; x.sl.push(sl); if (sl.s === 3) x.nt++; if (sl.d === 5) x.fri++; if ((sl.d === 5 && sl.s >= 2) || (sl.d === 6 && sl.s <= 2)) x.sat++; });
     people.forEach((p, pi) => { const x = st[pi];
       if (x.cnt > p.cap) { hard += 1000 * (x.cnt - p.cap); flags.push(`${p.n}: ${x.cnt} משמרות, מעל ${p.cap}`); }   // never traded for a filled slot
@@ -1323,7 +1341,7 @@ function schedule(ws, post, people, opt){
     [["nt", 2], ["fri", 2], ["sat", 2]].forEach(([k, Wt]) => {
       const grp = people.map((p, i) => [p, i]).filter(([p]) => p.kind === "core" && !(k === "nt" && p.prof.nightPref === 1));
       if (!grp.length) return;
-      const tot = grp.map(([p, i]) => (p.led[k] || 0) + st[i][k]); const m = tot.reduce((a, b) => a + b, 0) / tot.length;
+      const tot = grp.map(([p, i]) => (p.led[k] || 0) + st[i][k] - (k === "sat" ? st[i].vol : 0)); const m = tot.reduce((a, b) => a + b, 0) / tot.length;
       cost += Wt * tot.reduce((a, t) => a + Math.max(0, t - m), 0);   // 2 points for every night, Friday or Shabbat above the team average
     });
     return {cost: hard * 1000 + cost, hard, short, flags, st};
@@ -1351,7 +1369,7 @@ function schedule(ws, post, people, opt){
   best.people = people.map((p, pi) => { const x = best.st[pi], got = [], broke = [];
     x.sl.forEach(s => { const v = p.cells[s.d + "-" + s.s] || 0; if (v === 1) got.push(`${DAYN[s.d]} ${SH[s.s]}`); if (v === 2) broke.push(`${DAYN[s.d]} ${SH[s.s]}`); });
     const pref = Object.values(p.cells).filter(v => v === 1).length, notC = Object.values(p.cells).filter(v => v === 2).length;
-    return {n: p.n, kind: p.kind, cap: p.cap, cells: p.cells, cnt: x.cnt, nt: x.nt, fri: x.fri, sat: x.sat, off: 7 - x.days.size, got, broke, pref, notC, led: p.led, qRank: p.qRank}; });
+    return {n: p.n, kind: p.kind, cap: p.cap, cells: p.cells, shab: p.shab, shabNow: x.sl.map(s => s.d + "-" + s.s).filter(k => SHAB.includes(k)), cnt: x.cnt, nt: x.nt, fri: x.fri, sat: x.sat, off: 7 - x.days.size, got, broke, pref, notC, led: p.led, qRank: p.qRank}; });
   const notTot = best.people.reduce((a, p) => a + p.notC, 0), brokeTot = best.people.reduce((a, p) => a + p.broke.length, 0);
   best.gaps = best.out.map((pi, i) => pi < 0 ? i : -1).filter(i => i >= 0);
   best.kpi = {hard: best.hard, short: best.short, softPct: notTot ? Math.round(100 * (1 - brokeTot / notTot)) : 100, brokeTot,
@@ -1470,6 +1488,11 @@ function viewAdmin(){
     h += `<div class="card flush"><div class="tw"><table><thead><tr><th style="text-align:start;width:96px">שומר</th><th>משמרות</th><th>לילות</th><th>שישי</th><th>שבת</th><th>3 ימי חופש</th></tr></thead><tbody>
       ${rows.map(([n, L, f]) => `<tr><th>${esc(n)}${f ? "<small>מתגבר</small>" : ""}</th><td>${L.sh}</td><td>${L.nt}</td><td>${L.fri}</td><td>${L.sat}</td><td>${L.three} מתוך ${L.w}</td></tr>`).join("")}</tbody></table></div></div>
       <p class="hint">${LED.weeks.length} שבועות (${LED.weeks.map(w => dm(new Date(w + "T00:00:00"))).join(", ")}), לפי הסידור שפורסם, לפני החלפות.</p>`;
+    const nx = W[0], sb = core.map(n => [n, shabHist(n, nx)]).sort((a, b) => (b[1].ago ?? 99) - (a[1].ago ?? 99));
+    h += `<div class="card"><h3>לוח שבתות</h3><p class="hint" style="margin:0">כל הסידורים שפורסמו זה לצד זה. מודגש = שבת ממש (ו׳ ערב, ו׳ לילה, ש׳ בוקר, ש׳ צהריים). הראשון ברשימה הכי מזמן לא עשה שבת, והשיבוץ ישים אותו קודם.</p></div>
+    <div class="card flush"><div class="tw"><table class="shabt"><thead><tr><th style="text-align:start">שומר</th>${LED.weeks.map(w => `<th>${dm(new Date(w + "T00:00:00"))}</th>`).join("")}<th>שבת אחרונה</th></tr></thead><tbody>
+      ${sb.map(([n, H], i) => `<tr><th>${esc(n)}${i === 0 ? "<small>הבא בתור</small>" : ""}</th>${LED.weeks.map(w => `<td>${(H.weeks[w] || []).map(k => SHAB.includes(k) ? `<b>${slotTxt(k)}</b>` : `<span>${slotTxt(k)}</span>`).join("<br>") || "·"}</td>`).join("")}<td>${H.ago == null ? "אין ב־" + LED.weeks.length + " שב׳" : H.ago === 1 ? "שבוע שעבר" : "לפני " + H.ago + " שב׳"}</td></tr>`).join("")}</tbody></table></div></div>
+    <p class="hint">רוצה שבת מרצון (כמו עומר בערב שבת)? מסמן "מעדיף" על המשמרת בתבנית, וזה לא נספר נגדו בהוגנות.</p>`;
   }
   view.innerHTML = h; wireAdminTabs();
   view.querySelectorAll("[data-mk]").forEach(b => b.onclick = async () => { b.textContent = "יוצר…"; try { await makeLink(b.dataset.mk); } catch(e) { toast("לא נוצר"); } viewAdmin(); });
@@ -1513,7 +1536,7 @@ function viewAdmin(){
       const onlyDays = (n, cells) => { const o = WKF[n]; if (!o || !o.days.length) return cells;   // "שלישי בלבד": every other day is blocked
         const c = Object.assign({}, cells); for (let d = 0; d < 7; d++) if (!o.days.includes(d)) for (let s = 0; s < 4; s++) c[d + "-" + s] = 3; return c; };
       const mk = (n, kind) => { const g = GDOCS[n] || {}; return {n, kind, cap: kind === "core" ? 5 : ((WKF[n] || {}).n || 0),
-        cells: kind === "core" ? effCells(g, ws) : onlyDays(n, effCells(g, ws)), prof: Object.assign({maxN: null, nightPref: 0}, g.prof || {}, {target: 5}), led: ledgerOf(n), lastEnd: lastEnd(n)}; };
+        shab: shabHist(n, ws), cells: kind === "core" ? effCells(g, ws) : onlyDays(n, effCells(g, ws)), prof: Object.assign({maxN: null, nightPref: 0}, g.prof || {}, {target: 5}), led: ledgerOf(n), lastEnd: lastEnd(n)}; };
       const ppl = [...core.map(n => mk(n, "core")), ...Object.keys(WKF).filter(n => WKF[n].n > 0 && !core.includes(n)).map(n => mk(n, "floater"))];
       draft = schedule(ws, post, ppl);
       draft.pool = DIR.people.filter(p => p.type === "floater" && !p.left && !(WKF[p.n] || {}).n).map(p => ({n: p.n, cells: effCells(GDOCS[p.n] || {}, ws)}));
@@ -1572,7 +1595,7 @@ function drawDraft(){
   t += `</tbody></table></div></div><p class="hint">ירוק = קיבל משמרת שביקש · כתום = "מעדיף שלא" שנשבר · אדום = חסר שומר (אף אחד לא משובץ ליותר מ־5)</p>`;
   t += `<div class="card flush"><div class="tw"><table><thead><tr><th style="text-align:start;width:96px">שומר</th><th>משמרות</th><th>לילות</th><th>שישי</th><th>שבת</th><th>חופש</th></tr></thead><tbody>
     ${d.people.map(p => `<tr><th>${esc(p.n)}${p.kind === "floater" ? "<small>מתגבר</small>" : ""}</th><td>${p.cnt}</td><td>${p.nt}<small>${p.led.nt} ב־${LED.weeks.length} שב׳</small></td><td>${p.fri}</td><td>${p.sat}<small>${p.led.sat} ב־${LED.weeks.length} שב׳</small></td><td>${p.off}</td></tr>`).join("")}</tbody></table></div></div>`;
-  t += `<div class="card"><h3>למה כל אחד קיבל את מה שקיבל</h3>${d.people.filter(p => p.cnt).map(p => `<p class="hint"><b>${esc(p.n)}:</b> ${p.pref ? `קיבל ${p.got.length} מתוך ${p.pref} "מעדיף". ` : ""}${p.broke.length ? `"מעדיף שלא" שנשבר: ${p.broke.join(", ")} (אין חלופה בלי לשבור חוק). ` : ""}לילות ב־${LED.weeks.length} שבועות: ${p.led.nt}.${p.kind === "core" ? (p.off >= 3 ? " 3 ימי חופש השבוע." : "") : " מתגבר."}${((GDOCS[p.n] || {}).prof || {}).note ? ` 💬 "${esc(GDOCS[p.n].prof.note)}"` : ""}</p>`).join("")}</div>`;
+  t += `<div class="card"><h3>למה כל אחד קיבל את מה שקיבל</h3>${d.people.filter(p => p.cnt).map(p => `<p class="hint"><b>${esc(p.n)}:</b> ${p.pref ? `קיבל ${p.got.length} מתוך ${p.pref} "מעדיף". ` : ""}${p.broke.length ? `"מעדיף שלא" שנשבר: ${p.broke.join(", ")} (אין חלופה בלי לשבור חוק). ` : ""}לילות ב־${LED.weeks.length} שבועות: ${p.led.nt}. ${p.shabNow.length ? `שבת: ${p.shabNow.map(slotTxt).join(", ")}${p.shab && p.shab.ago != null ? ` (קודם: לפני ${p.shab.ago} שבועות)` : ""}.` : p.shab && p.shab.ago === 1 ? "לא בשבת, כי היה בשבוע שעבר." : ""}${p.kind === "core" ? (p.off >= 3 ? " 3 ימי חופש השבוע." : "") : " מתגבר."}${((GDOCS[p.n] || {}).prof || {}).note ? ` 💬 "${esc(GDOCS[p.n].prof.note)}"` : ""}</p>`).join("")}</div>`;
   const txt = draftText(d);
   t += `<div class="card"><h3>טיוטה, לא פורסם</h3><div class="actions"><a class="btn wa" target="_blank" rel="noopener" href="${waLink(txt)}">שלח בוואטסאפ</a><button type="button" class="btn sec" id="acp">העתק</button><button type="button" class="btn sec" id="asave">שמור טיוטה</button></div>
     <p class="hint">שלב 0: הטיוטה לא מחליפה את הסידור של אלירן. משווים מולו שבועיים.</p></div>`;
@@ -1691,7 +1714,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "11b64a13441f";
+  const BUILD = "7c9f605f9abb";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
