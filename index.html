@@ -742,6 +742,7 @@ const rnd = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => "abc
 (function readHash(){
   const h = new URLSearchParams(location.hash.slice(1));
   if (h.get("k")) store.set("k", h.get("k"));
+  if (h.get("k") && h.get("v")) store.set("kv", {t: h.get("k"), v: h.get("v")});   // one-tap sign-in from the WhatsApp message
   if (h.get("a")) store.set("a", h.get("a"));
   if (h.get("k") || h.get("a") || h.get("c")) try { history.replaceState(null, "", location.pathname + location.search); } catch(e) {}
 })();
@@ -804,6 +805,14 @@ async function loadGuard(){
   if (!FBC || !TOKEN || gState !== "idle") return;
   gState = "loading";
   try { GDOC = await fsGet("guards/" + TOKEN); gState = GDOC ? "ok" : "missing";
+    if (GDOC && GDOC.redirect) { store.set("k", GDOC.redirect); location.reload(); return; }   // same guard: his older key holds his data
+    const kv = store.get("kv", null);
+    if (GDOC && kv && kv.t === TOKEN && !GDOC.verified) {   // the link carries the code: send it in, wait for the bot to confirm
+      store.set("kv", null); GDOC.code = kv.v; GDOC.state = "checking"; await fsSet("guards/" + TOKEN, GDOC);
+      view.innerHTML = `<div class="card"><h2>מתחבר…</h2><p class="hint">מאמת אותך מול הוואטסאפ. זה לוקח עד דקה.</p></div>`;
+      for (let i = 0; i < 30; i++) { await new Promise(r => setTimeout(r, 3000)); const g2 = await fsGet("guards/" + TOKEN);
+        if (g2 && (g2.verified || g2.redirect)) { if (g2.redirect) store.set("k", g2.redirect); store.set("me", g2.name); location.reload(); return; } }
+    }
     if (GDOC && GDOC.name && GDOC.name !== me) { me = GDOC.name; store.set("me", me); }
     // a verified team lead: the bot puts his team's scheduler key in his own doc, the app turns on the "שיבוץ" tab (21.11)
     if (GDOC && GDOC.adminKey && store.get("a", "") !== GDOC.adminKey) { store.set("a", GDOC.adminKey); location.reload(); return; }
@@ -1548,7 +1557,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "7e8f47de09bb";
+  const BUILD = "257b48a05172";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
