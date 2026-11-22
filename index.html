@@ -132,6 +132,11 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 @keyframes mflash{0%{transform:scale(1.03)}100%{transform:scale(1)}}.meter.flash{animation:mflash .35s ease-out}
 .msave{margin-inline-start:auto;font-size:12px}
 .gaps{border-color:var(--bad)}
+.flist{display:grid;gap:6px}.frow{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:grid;gap:6px}.frow.on{border-color:var(--good);background:var(--goodbg)}
+.fhd{display:flex;justify-content:space-between;align-items:center}
+.step{display:flex;align-items:center;gap:10px}.step button{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--card);font:inherit;font-size:18px;cursor:pointer}
+.fdays{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.fdays button{font:inherit;font-size:13px;padding:6px 0;border-radius:8px;border:1px solid var(--line);background:var(--card);cursor:pointer}
+.fdays button[aria-pressed="true"]{background:var(--good);color:var(--card);border-color:var(--good);font-weight:700}
 .gmini{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;direction:rtl}
 .gm{display:grid;gap:2px;text-align:center;font-size:11px;color:var(--muted)}.gm i{display:block;height:9px;border-radius:2px;background:var(--line)}.gm i.x{background:var(--bad)}
 .gaprow{display:grid;grid-template-columns:70px 1fr;gap:8px;align-items:start;border-top:1px solid var(--line);padding-top:8px}
@@ -1368,6 +1373,16 @@ function draftText(d){
   return t;
 }
 let aWeek = 0, aPost = "", aCaps = {};
+// ADOC.wkFlo[weekIso][name] = {n: shifts, days: [0..6]} (empty days = any day). Before a week has entries, the
+// standing allocation (aCaps) is the default.
+function weekFloaters(wk){
+  ADOC.wkFlo = ADOC.wkFlo || {};
+  if (!ADOC.wkFlo[wk]) { const o = {}; Object.entries(aCaps).forEach(([n, c]) => { if (c > 0) o[n] = {n: c, days: []}; }); return o; }
+  return ADOC.wkFlo[wk];
+}
+let wkfT = null;
+function setWeekFloater(wk, n, f){ const cur = weekFloaters(wk); ADOC.wkFlo[wk] = cur; const o = cur[n] = cur[n] || {n: 0, days: []}; f(o);
+  o.n = Math.max(0, Math.min(5, o.n)); if (!o.n) delete cur[n]; draft = null; clearTimeout(wkfT); wkfT = setTimeout(saveAdmin, 700); viewAdmin(); }
 function viewAdmin(){
   if (!FBC) { view.innerHTML = `<div class="card"><h2>שיבוץ</h2><div class="alert bad">השרת עוד לא מחובר.</div></div>`; return; }
   if (aState === "idle" || aState === "loading") { view.innerHTML = `<div class="card"><p class="hint">טוען את נתוני הצוות…</p></div>`; loadAdmin(); return; }
@@ -1426,10 +1441,19 @@ function viewAdmin(){
     const ws = W[0], post = aPost || teamPostFor(ws);
     const needed = 28 - core.length * 5;
     flo.forEach(n => { if (aCaps[n] == null) aCaps[n] = ADOC.owner ? (((ADOC.alloc || {})[n] || {})[TEAM_LABEL] || 0) : ((ADOC.caps || {})[n] || 0); });
+    const WK = weekFloaters(iso(ws)), allFlo = [...new Set([...flo, ...DIR.people.filter(p => p.type === "floater" && !p.left).map(p => p.n)])];
+    const fRow = n => { const o = WK[n] || {n: 0, days: []};
+      return `<div class="frow${o.n ? " on" : ""}"><div class="fhd"><b>${esc(n)}</b>
+        <span class="step"><button type="button" data-fs="${esc(n)}|-1" aria-label="פחות">−</button><b>${o.n}</b><button type="button" data-fs="${esc(n)}|1" aria-label="יותר">+</button></span></div>
+        ${o.n ? `<div class="fdays">${DAYN.map((dn, d) => `<button type="button" data-fd="${esc(n)}|${d}" aria-pressed="${o.days.includes(d)}">${dn}</button>`).join("")}</div>
+        <p class="hint" style="margin:0">${o.days.length ? "רק ב" + o.days.map(d => DAYN[d]).join(", ") : "כל יום (סמן ימים כדי להגביל)"}</p>` : ""}</div>`; };
+    const fTot = Object.values(WK).reduce((a, o) => a + (o.n || 0), 0);
     h += `<div class="card"><h3>טיוטה לשבוע</h3><div class="seg">${W.map((w, i) => `<button type="button" data-aw="${i}" aria-selected="${aWeek === i}">${dm(w)}</button>`).join("")}</div>
       <label class="f">עמדת הצוות (לפי הסבב: ${esc(teamPostFor(ws))})<select id="apost">${(DIR.rotation || []).map(p => `<option${p === post ? " selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
       <p class="hint">${core.length} קבועים × עד 5 = ${28 - needed}. חסרות <b>${Math.max(0, needed)}</b> משמרות ממתגברים.</p>
-      ${flo.map(n => `<label class="f" style="flex-direction:row;align-items:center;justify-content:space-between">${esc(n)} (מתגבר) עד<input type="number" min="0" max="5" data-cap="${esc(n)}" value="${aCaps[n]}" style="width:80px"></label>`).join("")}
+      <h3 style="margin-top:6px">מתגברים שקיבלתי לשבוע ${dm(ws)} · ${fTot} משמרות</h3>
+      <p class="hint" style="margin:0">מה שסוכם בקבוצת ראשי הצוותים: כמה משמרות, ובאילו ימים בלבד. נשמר לשבוע הזה.</p>
+      <div class="flist">${allFlo.map(fRow).join("")}</div>
       <button type="button" class="btn pri" id="arun">בנה טיוטה</button></div><div id="aout"></div>`;
   } else if (aTab === "sos") {
     const all = [...(WEEKS.cur.slots || []), ...((WEEKS.next || {}).slots || [])].filter(x => x.end > new Date() && [...core, ...flo].some(n => same(canonN(x.who), n))).sort((a, b) => a.start - b.start).slice(0, 24);
@@ -1478,16 +1502,21 @@ function viewAdmin(){
   view.querySelectorAll("[data-aw]").forEach(b => b.onclick = () => { aWeek = +b.dataset.aw; aPost = ""; draft = null; viewAdmin(); });
   const ap = document.getElementById("apost"); if (ap) ap.onchange = () => { aPost = ap.value; draft = null; };
   view.querySelectorAll("[data-cap]").forEach(i => i.oninput = () => { aCaps[i.dataset.cap] = Math.max(0, Math.min(5, +i.value || 0)); });
+  view.querySelectorAll("[data-fs]").forEach(b => b.onclick = () => { const [n, dlt] = b.dataset.fs.split("|"); setWeekFloater(iso(W[0]), n, o => o.n += +dlt); });
+  view.querySelectorAll("[data-fd]").forEach(b => b.onclick = () => { const [n, d] = b.dataset.fd.split("|"); setWeekFloater(iso(W[0]), n, o => { o.days = o.days.includes(+d) ? o.days.filter(x => x !== +d) : [...o.days, +d].sort(); }); });
   const run = document.getElementById("arun");
   if (run) { run.onclick = () => { run.textContent = "מחשב…"; setTimeout(() => {
       const ws = W[0], post = aPost || teamPostFor(ws);
       const prevSlots = +addDays(ws, -7) === +WEEKS.cur.base ? WEEKS.cur.slots : (WEEKS.next && +addDays(ws, -7) === +WEEKS.next.base ? WEEKS.next.slots : []);
       const lastEnd = n => { const m = prevSlots.filter(y => same(canonN(y.who), n)).map(y => (y.end - ws) / 36e5); return m.length ? Math.max(...m) : -99; };
-      const mk = (n, kind) => { const g = GDOCS[n] || {}; return {n, kind, cap: kind === "core" ? 5 : (aCaps[n] || 0),
-        cells: effCells(g, ws), prof: Object.assign({maxN: null, nightPref: 0}, g.prof || {}, {target: 5}), led: ledgerOf(n), lastEnd: lastEnd(n)}; };
-      const ppl = [...core.map(n => mk(n, "core")), ...flo.filter(n => aCaps[n] > 0).map(n => mk(n, "floater"))];
+      const WKF = weekFloaters(iso(ws));
+      const onlyDays = (n, cells) => { const o = WKF[n]; if (!o || !o.days.length) return cells;   // "שלישי בלבד": every other day is blocked
+        const c = Object.assign({}, cells); for (let d = 0; d < 7; d++) if (!o.days.includes(d)) for (let s = 0; s < 4; s++) c[d + "-" + s] = 3; return c; };
+      const mk = (n, kind) => { const g = GDOCS[n] || {}; return {n, kind, cap: kind === "core" ? 5 : ((WKF[n] || {}).n || 0),
+        cells: kind === "core" ? effCells(g, ws) : onlyDays(n, effCells(g, ws)), prof: Object.assign({maxN: null, nightPref: 0}, g.prof || {}, {target: 5}), led: ledgerOf(n), lastEnd: lastEnd(n)}; };
+      const ppl = [...core.map(n => mk(n, "core")), ...Object.keys(WKF).filter(n => WKF[n].n > 0 && !core.includes(n)).map(n => mk(n, "floater"))];
       draft = schedule(ws, post, ppl);
-      draft.pool = flo.filter(n => !(aCaps[n] > 0)).map(n => ({n, cells: effCells(GDOCS[n] || {}, ws)}));
+      draft.pool = DIR.people.filter(p => p.type === "floater" && !p.left && !(WKF[p.n] || {}).n).map(p => ({n: p.n, cells: effCells(GDOCS[p.n] || {}, ws)}));
       drawDraft(); run.textContent = "בנה שוב (גרסה אחרת)"; }, 30); };
     if (draft) drawDraft(); }
 }
@@ -1662,7 +1691,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "e60c7fa0de9a";
+  const BUILD = "11b64a13441f";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
