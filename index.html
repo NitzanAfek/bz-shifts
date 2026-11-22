@@ -131,6 +131,13 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 .mc b{color:var(--ink);font-size:15px}.mc.over,.mc.over b{color:var(--bad)}
 @keyframes mflash{0%{transform:scale(1.03)}100%{transform:scale(1)}}.meter.flash{animation:mflash .35s ease-out}
 .msave{margin-inline-start:auto;font-size:12px}
+.gaps{border-color:var(--bad)}
+.gmini{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;direction:rtl}
+.gm{display:grid;gap:2px;text-align:center;font-size:11px;color:var(--muted)}.gm i{display:block;height:9px;border-radius:2px;background:var(--line)}.gm i.x{background:var(--bad)}
+.gaprow{display:grid;grid-template-columns:70px 1fr;gap:8px;align-items:start;border-top:1px solid var(--line);padding-top:8px}
+.gapk{font-size:13px;color:var(--muted)}.gapk b{display:block;color:var(--bad);font-size:15px}
+.gpl{display:flex;flex-wrap:wrap;gap:4px}.gp{font-size:12px;border-radius:999px;padding:3px 8px;background:var(--soft);color:var(--muted)}
+.gp.ok{background:var(--goodbg);color:var(--good);font-weight:700}.gp.bad{background:var(--badbg);color:var(--bad)}
 .why summary{cursor:pointer;list-style:none}.why summary::-webkit-details-marker{display:none}
 .syncbar{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.btn.sm{font-size:13px;padding:8px 10px;min-width:0;flex:1 1 auto}
 .why{background:var(--soft);border-radius:12px;padding:10px 12px;font-size:14px;margin:6px 0}.why ul{margin:4px 0 0;padding-inline-start:18px}
@@ -1278,6 +1285,7 @@ function effCells(g, ws){
 function schedule(ws, post, people, opt){
   // people: [{n, kind, cap, cells, prof, led, lastEnd}]
   const slots = []; for (let d = 0; d < 7; d++) for (let s = 0; s < 4; s++) slots.push({d, s, st: d*24 + START[s], en: d*24 + START[s] + 6, i: d*4 + s});
+  people.forEach(p => p.cap = Math.min(5, p.cap));   // Nitzan, 22.11: nobody gets a 6th shift; an empty slot is shown as a gap instead
   const N = people.length, idx = Object.fromEntries(people.map((p, i) => [p.n, i]));
   people.forEach(p => { const soft = Object.values(p.cells).filter(v => v === 1 || v === 2).length; p.w = Math.min(1, 6 / Math.max(1, soft)); });
   const core = people.filter(p => p.kind === "core");
@@ -1298,7 +1306,7 @@ function schedule(ws, post, people, opt){
       if (p.kind === "floater") cost += 1;
       x.days.add(sl.d); x.cnt++; x.sl.push(sl); if (sl.s === 3) x.nt++; if (sl.d === 5) x.fri++; if ((sl.d === 5 && sl.s >= 2) || (sl.d === 6 && sl.s <= 2)) x.sat++; });
     people.forEach((p, pi) => { const x = st[pi];
-      if (x.cnt > p.cap) { hard += x.cnt - p.cap; flags.push(`${p.n}: ${x.cnt} משמרות, מעל ${p.cap}`); }
+      if (x.cnt > p.cap) { hard += 1000 * (x.cnt - p.cap); flags.push(`${p.n}: ${x.cnt} משמרות, מעל ${p.cap}`); }   // never traded for a filled slot
       if (p.prof.maxN != null && x.nt > p.prof.maxN) cost += 3 * (x.nt - p.prof.maxN);   // nights over his own maximum = like "prefer not"
       const sl = x.sl.sort((a, b) => a.st - b.st); let prev = p.lastEnd, run = 0, prevN = -9;
       for (const s of sl) { const gap = s.st - prev;
@@ -1338,8 +1346,9 @@ function schedule(ws, post, people, opt){
   best.people = people.map((p, pi) => { const x = best.st[pi], got = [], broke = [];
     x.sl.forEach(s => { const v = p.cells[s.d + "-" + s.s] || 0; if (v === 1) got.push(`${DAYN[s.d]} ${SH[s.s]}`); if (v === 2) broke.push(`${DAYN[s.d]} ${SH[s.s]}`); });
     const pref = Object.values(p.cells).filter(v => v === 1).length, notC = Object.values(p.cells).filter(v => v === 2).length;
-    return {n: p.n, kind: p.kind, cnt: x.cnt, nt: x.nt, fri: x.fri, sat: x.sat, off: 7 - x.days.size, got, broke, pref, notC, led: p.led, qRank: p.qRank}; });
+    return {n: p.n, kind: p.kind, cap: p.cap, cells: p.cells, cnt: x.cnt, nt: x.nt, fri: x.fri, sat: x.sat, off: 7 - x.days.size, got, broke, pref, notC, led: p.led, qRank: p.qRank}; });
   const notTot = best.people.reduce((a, p) => a + p.notC, 0), brokeTot = best.people.reduce((a, p) => a + p.broke.length, 0);
+  best.gaps = best.out.map((pi, i) => pi < 0 ? i : -1).filter(i => i >= 0);
   best.kpi = {hard: best.hard, short: best.short, softPct: notTot ? Math.round(100 * (1 - brokeTot / notTot)) : 100, brokeTot,
     nights: (a => a.length ? Math.min(...a) + "-" + Math.max(...a) : "")(best.people.filter(p => p.kind === "core").map(p => p.nt)),
     floaterShifts: best.people.filter(p => p.kind === "floater").reduce((a, p) => a + p.cnt, 0),
@@ -1461,7 +1470,9 @@ function viewAdmin(){
     await saveAdmin(); toast("נשמר. הבוט יעדכן את הרשימה בריצה הבאה"); });
   let alT = null;
   view.querySelectorAll("[data-al]").forEach(i => i.onchange = () => { const [n, t] = i.dataset.al.split("|"); ADOC.alloc[n] = ADOC.alloc[n] || {};
-    ADOC.alloc[n][t] = Math.max(0, Math.min(5, +i.value || 0)); if (t === TEAM_LABEL) aCaps[n] = ADOC.alloc[n][t]; clearTimeout(alT); alT = setTimeout(saveAdmin, 600); viewAdmin(); });
+    const others = Object.entries(ADOC.alloc[n]).filter(([tt]) => tt !== t).reduce((a, [, v]) => a + (+v || 0), 0);
+    const want = Math.max(0, Math.min(5, +i.value || 0)); ADOC.alloc[n][t] = Math.min(want, Math.max(0, 5 - others));
+    if (ADOC.alloc[n][t] < want) toast(`${n} כבר מוקצה ל־${others} משמרות בצוותים אחרים. מקסימום 5 בכל הבונקר`); if (t === TEAM_LABEL) aCaps[n] = ADOC.alloc[n][t]; clearTimeout(alT); alT = setTimeout(saveAdmin, 600); viewAdmin(); });
   view.querySelectorAll("[data-rmf]").forEach(b => b.onclick = () => { const n = b.dataset.rmf; ADOC.team = {core: teamCore(ADOC).filter(x => x !== n), floaters: teamFloaters(ADOC).filter(x => x !== n)}; saveAdmin(); viewAdmin(); });
   const ag = document.getElementById("addg"); if (ag) ag.onchange = () => { if (!ag.value) return; ADOC.team = {core: teamCore(ADOC).slice(), floaters: [...teamFloaters(ADOC), ag.value]}; saveAdmin(); viewAdmin(); };
   view.querySelectorAll("[data-aw]").forEach(b => b.onclick = () => { aWeek = +b.dataset.aw; aPost = ""; draft = null; viewAdmin(); });
@@ -1475,7 +1486,9 @@ function viewAdmin(){
       const mk = (n, kind) => { const g = GDOCS[n] || {}; return {n, kind, cap: kind === "core" ? 5 : (aCaps[n] || 0),
         cells: effCells(g, ws), prof: Object.assign({maxN: null, nightPref: 0}, g.prof || {}, {target: 5}), led: ledgerOf(n), lastEnd: lastEnd(n)}; };
       const ppl = [...core.map(n => mk(n, "core")), ...flo.filter(n => aCaps[n] > 0).map(n => mk(n, "floater"))];
-      draft = schedule(ws, post, ppl); drawDraft(); run.textContent = "בנה שוב (גרסה אחרת)"; }, 30); };
+      draft = schedule(ws, post, ppl);
+      draft.pool = flo.filter(n => !(aCaps[n] > 0)).map(n => ({n, cells: effCells(GDOCS[n] || {}, ws)}));
+      drawDraft(); run.textContent = "בנה שוב (גרסה אחרת)"; }, 30); };
     if (draft) drawDraft(); }
 }
 // a guard's constraints and fixed template, read-only, for his team lead (22.11)
@@ -1500,15 +1513,34 @@ function guardSheet(n){
   sh.querySelector("#gsx").onclick = () => sh.remove(); sh.onclick = e => { if (e.target === sh) sh.remove(); };
 }
 function wireAdminTabs(){ view.querySelectorAll("[data-at]").forEach(b => b.onclick = () => { aTab = b.dataset.at; store.set("aTab", aTab); viewAdmin(); }); }
+// Gaps (Nitzan, 22.11): when 28 shifts cannot be covered without a 6th shift, leave them empty and show why,
+// with who could close each one: unallocated floaters first, then why each team guard cannot.
+function gapsHTML(d, ws){
+  if (!d.gaps || !d.gaps.length) return "";
+  const busy = dd => new Set([0, 1, 2, 3].map(s => d.out[dd * 4 + s]).filter(x => x >= 0).map(x => d.names[x]));
+  const capTot = d.people.reduce((a, p) => a + p.cap, 0);
+  const rows = d.gaps.map(i => { const dd = Math.floor(i / 4), s = i % 4, k = dd + "-" + s, on = busy(dd);
+    const why = d.people.map(p => { const v = p.cells[k] || 0;
+      const r = v === 3 ? ["bad", "חסום"] : on.has(p.n) ? ["", "עובד באותו יום"] : p.cnt >= p.cap ? ["", p.kind === "floater" ? `מוקצה ${p.cap}, מלא` : "כבר 5"] : ["ok", v === 2 ? "פנוי, מעדיף שלא" : "פנוי"];
+      return `<span class="gp ${r[0]}">${esc(p.n)} · ${r[1]}</span>`; }).join("");
+    const extra = (d.pool || []).filter(x => (x.cells[k] || 0) !== 3).map(x => `<span class="gp ok">➕ ${esc(x.n)} · מתגבר, לא הוקצה לצוות</span>`).join("");
+    return `<div class="gaprow"><div class="gapk">${DAYN[dd]} ${dm(addDays(ws, dd))}<b>${SH[s]}</b></div><div class="gpl">${extra}${why}</div></div>`; }).join("");
+  const mini = [0,1,2,3,4,5,6].map(dd => `<div class="gm"><span>${DAYN[dd].slice(0, 1)}</span>${[0,1,2,3].map(s => `<i class="${d.out[dd*4+s] < 0 ? "x" : ""}" title="${DAYN[dd]} ${SH[s]}"></i>`).join("")}</div>`).join("");
+  return `<div class="card gaps"><h3>⚠ ${d.gaps.length === 1 ? "משמרת אחת" : d.gaps.length + " משמרות"} בלי שומר</h3>
+    <p class="hint" style="margin:0">לא שיבצתי אף אחד ליותר מ־5 משמרות. קיבולת הצוות השבוע: <b>${capTot}</b> משמרות מול <b>28</b> נדרשות${capTot < 28 ? `, חסרות <b>${28 - capTot}</b> משמרות מתגברים` : ". החוסר נובע מחסימות, לא מכמות"}.</p>
+    <div class="gmini" aria-hidden="true">${mini}</div>
+    ${rows}
+    <p class="hint" style="margin:0">לסגירה: הקצה משמרות למתגבר (טבלת המתגברים למעלה) ובנה שוב, או בקש משומר לפתוח חסימה.</p></div>`;
+}
 function drawDraft(){
   const d = draft, ws = new Date(d.ws + "T00:00:00"), el = document.getElementById("aout"); if (!el) return;
   const cellCls = (pi, dd, s) => { if (pi < 0) return "bad"; const p = d.people[pi]; const k = `${DAYN[dd]} ${SH[s]}`; return p.broke.includes(k) ? "sw" : p.got.includes(k) ? "lv" : ""; };
-  let t = `<div class="card"><div class="stats s4"><div><b>${d.kpi.hard ? "⚠ " + d.kpi.hard : "100%"}</b><span>אילוצים קשיחים</span></div><div><b>${d.kpi.softPct}%</b><span>"מעדיף שלא" כובדו</span></div><div><b>${d.kpi.nights}</b><span>לילות לקבוע</span></div><div><b>${d.kpi.floaterShifts}</b><span>משמרות מתגבר</span></div></div>
+  let t = gapsHTML(d, ws) + `<div class="card"><div class="stats s4"><div><b>${d.kpi.hard ? "⚠ " + d.kpi.hard : "100%"}</b><span>אילוצים קשיחים</span></div><div><b>${d.kpi.softPct}%</b><span>"מעדיף שלא" כובדו</span></div><div><b>${d.kpi.nights}</b><span>לילות לקבוע</span></div><div><b>${d.kpi.floaterShifts}</b><span>משמרות מתגבר</span></div></div>
     ${d.kpi.three.length ? `<p class="hint">3 ימי חופש: <b>${d.kpi.three.map(esc).join(", ")}</b> (לפי התור).</p>` : ""}
     ${d.flags.length ? `<div class="alert bad"><b>חוקים שנשברו</b><ul>${d.flags.slice(0, 8).map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>` : `<span class="pill ok">✓ כל החוקים נשמרו: עד 5 משמרות, 2 ימי חופש, אין מנוחה של 6 שעות</span>`}</div>`;
   t += `<div class="card flush"><div class="tw"><table><thead><tr><th style="width:64px">${esc(d.post)}</th>${SH.map(s => `<th>${s}</th>`).join("")}</tr></thead><tbody>`;
-  for (let dd = 0; dd < 7; dd++) t += `<tr><th>${DAYN[dd]}<small>${dm(addDays(ws, dd))}</small></th>${[0, 1, 2, 3].map(s => { const pi = d.out[dd*4 + s]; return `<td class="${cellCls(pi, dd, s)}">${pi < 0 ? "?" : esc(d.names[pi])}</td>`; }).join("")}</tr>`;
-  t += `</tbody></table></div></div><p class="hint">ירוק = קיבל משמרת שביקש · כתום = "מעדיף שלא" שנשבר · אדום = אין שומר</p>`;
+  for (let dd = 0; dd < 7; dd++) t += `<tr><th>${DAYN[dd]}<small>${dm(addDays(ws, dd))}</small></th>${[0, 1, 2, 3].map(s => { const pi = d.out[dd*4 + s]; return `<td class="${cellCls(pi, dd, s)}">${pi < 0 ? "<b>חסר</b>" : esc(d.names[pi])}</td>`; }).join("")}</tr>`;
+  t += `</tbody></table></div></div><p class="hint">ירוק = קיבל משמרת שביקש · כתום = "מעדיף שלא" שנשבר · אדום = חסר שומר (אף אחד לא משובץ ליותר מ־5)</p>`;
   t += `<div class="card flush"><div class="tw"><table><thead><tr><th style="text-align:start;width:96px">שומר</th><th>משמרות</th><th>לילות</th><th>שישי</th><th>שבת</th><th>חופש</th></tr></thead><tbody>
     ${d.people.map(p => `<tr><th>${esc(p.n)}${p.kind === "floater" ? "<small>מתגבר</small>" : ""}</th><td>${p.cnt}</td><td>${p.nt}<small>${p.led.nt} ב־${LED.weeks.length} שב׳</small></td><td>${p.fri}</td><td>${p.sat}<small>${p.led.sat} ב־${LED.weeks.length} שב׳</small></td><td>${p.off}</td></tr>`).join("")}</tbody></table></div></div>`;
   t += `<div class="card"><h3>למה כל אחד קיבל את מה שקיבל</h3>${d.people.filter(p => p.cnt).map(p => `<p class="hint"><b>${esc(p.n)}:</b> ${p.pref ? `קיבל ${p.got.length} מתוך ${p.pref} "מעדיף". ` : ""}${p.broke.length ? `"מעדיף שלא" שנשבר: ${p.broke.join(", ")} (אין חלופה בלי לשבור חוק). ` : ""}לילות ב־${LED.weeks.length} שבועות: ${p.led.nt}.${p.kind === "core" ? (p.off >= 3 ? " 3 ימי חופש השבוע." : "") : " מתגבר."}${((GDOCS[p.n] || {}).prof || {}).note ? ` 💬 "${esc(GDOCS[p.n].prof.note)}"` : ""}</p>`).join("")}</div>`;
@@ -1630,7 +1662,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "e185c486f56e";
+  const BUILD = "e60c7fa0de9a";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
