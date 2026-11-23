@@ -8,6 +8,27 @@
 --p1:#2f6fb3;--p2:#1f8a70;--p3:#c0602f;--p4:#6d4fb8;--shadow:0 1px 2px rgba(16,24,40,.05)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#11151d;--card:#191f2a;--ink:#e7ebf2;--muted:#a3adbd;--faint:#6f7a8c;--line:#2a3140;--soft:#1d2430;--acc:#8fb0ff;--accbg:#22314f;--note:#b79bff;--notebg:#2a2342;--swap:#f2b04a;--swapbg:#3a2c12;--live:#4fd1b9;--livebg:#123a33;--bad:#ff8a75;--badbg:#3d1d18;--good:#5fd08f;--goodbg:#173426;--p1:#6fa8e8;--p2:#4cc3a2;--p3:#ec9466;--p4:#a88cf0;--shadow:none}}
 :root[data-theme="dark"]{color-scheme:dark;--bg:#11151d;--card:#191f2a;--ink:#e7ebf2;--muted:#a3adbd;--faint:#6f7a8c;--line:#2a3140;--soft:#1d2430;--acc:#8fb0ff;--accbg:#22314f;--note:#b79bff;--notebg:#2a2342;--swap:#f2b04a;--swapbg:#3a2c12;--live:#4fd1b9;--livebg:#123a33;--bad:#ff8a75;--badbg:#3d1d18;--good:#5fd08f;--goodbg:#173426;--p1:#6fa8e8;--p2:#4cc3a2;--p3:#ec9466;--p4:#a88cf0;--shadow:none}
+/* ---- "שקט" (Nitzan, 23.11, preview): cool slate, one ink-blue accent, flat surfaces, change = amber dot ---- */
+html.ui-quiet{--bg:#F7F8FA;--card:#FFFFFF;--ink:#1E2530;--muted:#6B7480;--faint:#9AA1AB;--line:#E3E6EB;--soft:#EEF0F3;
+--acc:#3D5A80;--accbg:#EAF0F7;--note:#5D5A8A;--notebg:#EFEEF6;--swap:#B7791F;--swapbg:#FBF3E4;--live:#3D6E7A;--livebg:#E8F1F3;--bad:#B4442F;--badbg:#F8ECE9;--good:#3E7A5A;--goodbg:#EAF3EE;
+--p1:#3D5A80;--p2:#4F7A6A;--p3:#9A6A4A;--p4:#6A6290;--shadow:none}
+@media (prefers-color-scheme:dark){html.ui-quiet:not([data-theme="light"]){--bg:#14181F;--card:#1B2129;--ink:#E6EAF0;--muted:#97A0AD;--faint:#6B7480;--line:#2A313C;--soft:#222934;
+--acc:#8EA9CF;--accbg:#223044;--swap:#E0B15C;--swapbg:#3A2E16;--good:#7FBF9C;--goodbg:#1C3027;--bad:#E08A78;--badbg:#3A211C;--live:#7FB3BF;--livebg:#1A2E33}}
+html.ui-quiet body{font-family:Assistant,Arial,sans-serif}
+html.ui-quiet h1,html.ui-quiet h2,html.ui-quiet .big{font-family:Assistant,Arial,sans-serif;font-weight:800;letter-spacing:-.01em}
+html.ui-quiet .card{border:0;border-radius:12px}
+html.ui-quiet .wrap{gap:12px}
+html.ui-quiet table.rost td.sw,html.ui-quiet table.rost td.lv,html.ui-quiet table.rost td.nt{background:none!important;box-shadow:inset 0 0 0 1.5px var(--swap);border-radius:8px}
+html.ui-quiet table.rost td.sw::after,html.ui-quiet table.rost td.lv::after,html.ui-quiet table.rost td.nt::after{content:"";display:block;width:5px;height:5px;border-radius:50%;background:var(--swap);margin:2px auto 0}
+html.ui-quiet .n.me{background:var(--acc);color:var(--card);border-radius:6px;padding:1px 5px;font-weight:700}
+html.ui-quiet .teamsel button[aria-pressed="true"],html.ui-quiet .fpick button[aria-pressed="true"],html.ui-quiet .fdays button[aria-pressed="true"],html.ui-quiet .wkbar button[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:var(--card)}
+html.ui-quiet .fpick button.has{border-color:var(--acc);color:var(--acc)}
+html.ui-quiet .fopen{background:var(--accbg);border-color:transparent}
+html.ui-quiet .teamsel button,html.ui-quiet .fpick button,html.ui-quiet .fdays button{border-color:var(--line);border-radius:10px}
+html.ui-quiet .nextq{display:flex;justify-content:space-between;align-items:center;background:var(--accbg);border-radius:12px;padding:10px 14px}
+html.ui-quiet .nextq small{display:block;font-size:12px;color:var(--muted)}html.ui-quiet .nextq b{font-size:16px}
+html.ui-quiet .nextq em{font-style:normal;font-size:13px;font-weight:700;color:var(--acc)}
+.nextq{display:none}html.ui-quiet .nextq{display:flex}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 #static{display:flex;flex-direction:column;gap:12px}
@@ -310,6 +331,8 @@ const peopleW = () => [...new Set(WK_().P.flatMap(p => p.rows.flatMap(r => r[2].
 const postOfW = name => { for (const p of WK_().P) if (!p.missing && p.rows.slice(0,4).some(r => r[2].some(c => nameOf(c).split(", ").some(n => same(n, name))))) return p.name; return ""; };
 
 // ---------- state ----------
+(function(){ try { const q = new URLSearchParams(location.search).get("ui"); if (q === "quiet" || q === "classic") localStorage.setItem("bz_ui", JSON.stringify(q));
+  if (JSON.parse(localStorage.getItem("bz_ui") || '""') === "quiet") document.documentElement.classList.add("ui-quiet"); } catch(e) {} })();
 const store = { get(k,d){ try { const v = localStorage.getItem("bz_"+k); return v === null ? d : JSON.parse(v); } catch(e){ return d; } },
                 set(k,v){ try { localStorage.setItem("bz_"+k, JSON.stringify(v)); } catch(e){} } };
 let me = store.get("me", "");
@@ -406,7 +429,7 @@ function shortName(n){
 // the roster's notes, only what a guard needs (typos and "written without a name" are for the scheduler, not for him)
 const cleanNote = t => (t || "").split(" · ").filter(x => x && !/טעות|הקלד|הוזן|בטבלה|רשום |לפי שמות הימים/.test(x)).join(" · ");
 function teamWeekHTML(p, B, today){
-  let h = `<div class="card flush"><div class="tw"><table class="twk"><thead><tr><th><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}</th>${DAYN.map((d, i) => { const dt = addDays(B, i), isT = today >= dt && today < addDays(dt, 1);
+  let h = `<div class="card flush"><div class="tw"><table class="twk rost"><thead><tr><th><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}</th>${DAYN.map((d, i) => { const dt = addDays(B, i), isT = today >= dt && today < addDays(dt, 1);
     return `<th class="${isT ? "tday" : ""}">${"אבגדהוש"[i]}׳<small>${dm(dt)}</small></th>`; }).join("")}</tr></thead><tbody>`;
   for (let r = 0; r < 5; r++) {
     h += `<tr class="${r === 4 ? "off" : ""}"><th>${r < 4 ? SH[r] : "חופש"}${r < 4 ? `<small>${["07-13","13-19","19-01","01-07"][r]}</small>` : ""}</th>`;
@@ -427,6 +450,9 @@ function viewWeek(){
   }
   const isNext = wk === "next" && N, P = isNext ? N.posts : posts, B = isNext ? new Date(N.week_start + "T00:00:00") : W0;
   if (isNext && N.posts.some(p => p.missing)) h += `<p class="hint">חלק מהעמדות עוד לא פורסמו: ${N.posts.filter(p=>p.missing).map(p=>esc(p.name)).join(", ")}.</p>`;
+  if (me) { const nx = myUpcoming(me).find(x => x.end > today);
+    if (nx) { const hrs = Math.max(0, (nx.start - today) / 36e5);
+      h += `<div class="nextq"><div><small>המשמרת הבאה שלך</small><b>${DAYN[nx.day]} ${dm(addDays(nx.base || W0, nx.day))} · ${SH[nx.s]} · ${esc(nx.post)}</b></div><em>${nx.start <= today ? "עכשיו" : hrs < 24 ? "בעוד " + Math.floor(hrs) + " ש׳" : "בעוד " + Math.round(hrs / 24) + " ימים"}</em></div>`; } }
   const wnote = cleanNote(isNext ? N.note : DATA.note);
   if (wnote) h += `<details class="wnote"><summary>הערות לסידור השבוע</summary><p>${esc(wnote).replace(/ · /g, "<br>")}</p></details>`;
   const TP = teamPosts(P), myTeam = me && dirOf(me) && dirOf(me).team;
@@ -449,7 +475,7 @@ function viewWeek(){
   h += `<div class="days" role="tablist">${DAYN.map((d,i)=>{ const dt = addDays(B,i);
     const isT = today >= dt && today < addDays(dt,1);
     return `<button type="button" role="tab" class="${isT?"today":""}" aria-selected="${i===day}" data-i="${i}">${d}<span>${isT?"היום":dm(dt)}</span></button>`; }).join("")}</div>`;
-  h += `<div class="card flush"><table><thead><tr><th style="width:64px"></th>${P.map(p=>`<th><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}${p.missing?`<small style="display:block;font-weight:400;color:var(--faint);font-size:11px">לא פורסם</small>`:""}</th>`).join("")}</tr></thead><tbody>`;
+  h += `<div class="card flush"><table class="rost"><thead><tr><th style="width:64px"></th>${P.map(p=>`<th><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}${p.missing?`<small style="display:block;font-weight:400;color:var(--faint);font-size:11px">לא פורסם</small>`:""}</th>`).join("")}</tr></thead><tbody>`;
   for (let r = 0; r < 5; r++) {
     h += `<tr class="${r===4?"off":""}"><th>${r<4?SH[r]:"חופש"}${r<4?`<small>${["07-13","13-19","19-01","01-07"][r]}</small>`:""}</th>`;
     for (const p of P) {
@@ -1378,6 +1404,7 @@ function viewSettings(){
     ${FBC && !TOKEN && canVerify() && me ? `<button type="button" class="btn pri" id="st_verify">אמת אותי בוואטסאפ</button>` : ""}
 </div>`;
   h += pushCard();
+  h += `<div class="card"><h3>מראה (תצוגה מקדימה)</h3><div class="seg"><button type="button" data-ui="classic" aria-selected="${!document.documentElement.classList.contains("ui-quiet")}">קלאסי</button><button type="button" data-ui="quiet" aria-selected="${document.documentElement.classList.contains("ui-quiet")}">שקט</button></div></div>`;
 
   if (ok) { const P = GDOC.prof = GDOC.prof || {};
     h += `<div class="card"><h3>יומן</h3>
@@ -1393,6 +1420,7 @@ function viewSettings(){
   const q = id => document.getElementById(id);
   q("st_name").onclick = pickMe;
   if (q("st_verify")) q("st_verify").onclick = () => verifySheet(canonN(me));
+  view.querySelectorAll("[data-ui]").forEach(b => b.onclick = () => { store.set("ui", b.dataset.ui); document.documentElement.classList.toggle("ui-quiet", b.dataset.ui === "quiet"); viewSettings(); });
   if (q("st_pastef")) q("st_pastef").onsubmit = ev => { ev.preventDefault();   // 23.11: a home-screen app that lost its key gets it back from the personal link
     const v = q("st_paste").value.trim(), h = new URLSearchParams((v.split("#")[1] || ""));
     const k = h.get("k"), a = h.get("a");
@@ -1934,7 +1962,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "296d7d7febc6";
+  const BUILD = "b6c5c8788a24";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
