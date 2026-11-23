@@ -1268,7 +1268,9 @@ function viewSettings(){
   let h = `<div class="card"><h2>הגדרות</h2><p class="hint">כל מה שמגדירים פעם אחת. האילוצים והתבנית השבועית נמצאים בלשונית "אילוצים".</p></div>`;
   const ok = TOKEN && FBC && gState === "ok";
   h += `<div class="card"><h3>מי אני</h3><div class="opt"><div class="s"><b>${me ? esc(me) : "עוד לא נבחר"}</b><span>${ok ? (GDOC.verified ? "✓ אומת בוואטסאפ" : "✓ מחובר אישית") : "לא מאומת: האפליקציה לא שומרת אילוצים ולא שולחת התראות"}</span></div><button type="button" class="cal" id="st_name">${me ? "שנה" : "בחר"}</button></div>
-    ${FBC && !TOKEN && canVerify() && me ? `<button type="button" class="btn pri" id="st_verify">אמת אותי בוואטסאפ</button>` : ""}</div>`;
+    ${FBC && !TOKEN && canVerify() && me ? `<button type="button" class="btn pri" id="st_verify">אמת אותי בוואטסאפ</button>` : ""}
+    ${FBC && !TOKEN ? `<form id="st_pastef" style="display:grid;gap:6px;margin-top:6px"><label class="f">יש לך קישור אישי? הדבק אותו כאן<input id="st_paste" type="url" placeholder="https://nitzanafek.github.io/bz-shifts/#k=…" style="direction:ltr"></label><button class="btn sec">התחבר עם הקישור</button></form>
+      <p class="hint" style="margin:0">באפליקציה שבמסך הבית אי אפשר לפתוח קישור, אז מדביקים אותו כאן. האילוצים, ההרשאות וההתראות חוזרים כמו שהיו.</p>` : ""}</div>`;
   h += pushCard();
   if (ok && GDOC.verified) h += `<div class="card"><h3>🔑 הקישור האישי שלך</h3><p class="hint" style="margin:0">פותח את האפליקציה שלך מכל טלפון או דפדפן, בלי קוד ובלי לחכות לבוט. שמור אותו אצלך, למשל שלח לעצמך בוואטסאפ. לא להעביר לאחרים.</p>
     <div class="actions"><a class="btn sec" target="_blank" rel="noopener" href="${waLink("הקישור האישי שלי לאפליקציית הבונקר (לא להעביר):\n" + linkFor(TOKEN))}">שלח לעצמי בוואטסאפ</a><button type="button" class="btn sec" id="st_mylink">העתק</button></div></div>`;
@@ -1286,6 +1288,11 @@ function viewSettings(){
   const q = id => document.getElementById(id);
   q("st_name").onclick = pickMe;
   if (q("st_verify")) q("st_verify").onclick = () => verifySheet(canonN(me));
+  if (q("st_pastef")) q("st_pastef").onsubmit = ev => { ev.preventDefault();   // 23.11: a home-screen app that lost its key gets it back from the personal link
+    const v = q("st_paste").value.trim(), h = new URLSearchParams((v.split("#")[1] || ""));
+    const k = h.get("k"), a = h.get("a");
+    if (!k && !a) { toast("זה לא נראה כמו הקישור האישי"); return; }
+    if (k) store.set("k", k); if (a) store.set("a", a); location.reload(); };
   if (q("st_mylink")) q("st_mylink").onclick = () => copy(linkFor(TOKEN));
   if (q("st_inst")) q("st_inst").onclick = installBot;
   if (q("pushon")) q("pushon").onclick = enablePush;
@@ -1795,7 +1802,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "072a4f014d94";
+  const BUILD = "a51d9cb27e2f";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
