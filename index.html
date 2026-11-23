@@ -28,7 +28,11 @@ html.ui-quiet .teamsel button,html.ui-quiet .fpick button,html.ui-quiet .fdays b
 html.ui-quiet .nextq{display:flex;justify-content:space-between;align-items:center;background:var(--accbg);border-radius:12px;padding:10px 14px}
 html.ui-quiet .nextq small{display:block;font-size:12px;color:var(--muted)}html.ui-quiet .nextq b{font-size:16px}
 html.ui-quiet .nextq em{font-style:normal;font-size:13px;font-weight:700;color:var(--acc)}
-.nextq{display:none}html.ui-quiet .nextq{display:flex}
+.nextq{display:none}html.ui-quiet .nextq{display:flex}html.ui-pilot .nextq{display:none}
+.cand{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;border-top:1px solid var(--line);padding-top:8px}.cand small{grid-column:1/-1;color:var(--muted);font-size:12.5px}
+.card.nxt{background:var(--accbg)}.card.pof{box-shadow:inset 0 0 0 1.5px var(--swap)}
+.card .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ibx-h{display:flex;justify-content:space-between;align-items:center}.card.ibx.warn{box-shadow:inset 0 0 0 1.5px var(--swap)}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 #static{display:flex;flex-direction:column;gap:12px}
@@ -331,8 +335,9 @@ const peopleW = () => [...new Set(WK_().P.flatMap(p => p.rows.flatMap(r => r[2].
 const postOfW = name => { for (const p of WK_().P) if (!p.missing && p.rows.slice(0,4).some(r => r[2].some(c => nameOf(c).split(", ").some(n => same(n, name))))) return p.name; return ""; };
 
 // ---------- state ----------
-(function(){ try { const q = new URLSearchParams(location.search).get("ui"); if (q === "quiet" || q === "classic") localStorage.setItem("bz_ui", JSON.stringify(q));
-  if (JSON.parse(localStorage.getItem("bz_ui") || '""') === "quiet") document.documentElement.classList.add("ui-quiet"); } catch(e) {} })();
+(function(){ try { const q = new URLSearchParams(location.search).get("ui"); if (q === "quiet" || q === "classic" || q === "pilot") localStorage.setItem("bz_ui", JSON.stringify(q));
+  const u = JSON.parse(localStorage.getItem("bz_ui") || '""'); if (u === "quiet" || u === "pilot") document.documentElement.classList.add("ui-quiet"); if (u === "pilot") document.documentElement.classList.add("ui-pilot"); } catch(e) {} })();
+const PILOT = document.documentElement.classList.contains("ui-pilot");
 const store = { get(k,d){ try { const v = localStorage.getItem("bz_"+k); return v === null ? d : JSON.parse(v); } catch(e){ return d; } },
                 set(k,v){ try { localStorage.setItem("bz_"+k, JSON.stringify(v)); } catch(e){} } };
 let me = store.get("me", "");
@@ -990,6 +995,7 @@ async function loadGuard(){
         if (g2 && (g2.verified || g2.redirect)) { if (g2.redirect) store.set("k", g2.redirect); store.set("me", g2.name); location.reload(); return; } }
     }
     if (GDOC && GDOC.name && GDOC.name !== me) { me = GDOC.name; store.set("me", me); }
+    if (PILOT && GDOC) { try { GIN = (await fsGet("guards/" + TOKEN + "-in")) || {}; } catch(e) { GIN = {}; } }
     // a verified team lead: the bot puts his team's scheduler key in his own doc, the app turns on the "שיבוץ" tab (21.11)
     if (GDOC && GDOC.adminKey && store.get("a", "") !== GDOC.adminKey) { store.set("a", GDOC.adminKey); location.reload(); return; }
     // usage (Nitzan, 21.11): when a registered guard last opened the app, at most one write an hour
@@ -997,7 +1003,7 @@ async function loadGuard(){
   } catch(e) { gState = "error"; }
   render();
 }
-let saveTimer = null, saveMsg = "";
+let saveTimer = null, saveMsg = "", GIN = {};
 function saveGuard(){
   if (!GDOC) return;
   saveMsg = "שומר…"; document.querySelectorAll("#savest,.savest").forEach(e => e.textContent = saveMsg);
@@ -1928,7 +1934,114 @@ if (ENV.web && !ENV.standalone) {
 document.getElementById("static").hidden = true;
 document.getElementById("tabs").hidden = false;
 document.getElementById("mebtn").hidden = false;
-const VIEWS = {now:viewNow, week:viewWeek, mine:viewMine, ask:viewSwap, cons:viewCons, plan:viewAdmin, settings:viewSettings};   // 2.0: plan = the scheduler, only with the scheduler link
+// ===================== PILOT: exception-based management (Nitzan, 23.11) =====================
+// Guard: "השבוע שלי" (next shift, offers for me, my requests, my shifts with "לא אוכל"), "הצוות", "מה שונה".
+// Lead: "דורש החלטה" inbox. The bot on the Mac runs the swap (state in guards/<key>-in and admin/<key>-swaps).
+const SHIFT_H = ["07:00-13:00", "13:00-19:00", "19:00-01:00", "01:00-07:00"];
+const myTeamOf = n => (dirOf(n) || {}).team || "";
+const allSlots = () => [...WEEKS.cur.slots, ...((WEEKS.next || {}).slots || [])];
+const slotId = x => `${iso(x.base)}|${x.post}|${x.day}|${x.s}`;
+function candidatesFor(x){   // who can take this shift by the rules: max 5 a week, one shift a day, 8 hours rest
+  const W = weekOf(x), team = myTeamOf(me), all = allSlots();
+  const pool = DIR.people.filter(p => !p.left && !same(p.n, me) && (p.team === team || p.type === "floater"));
+  return pool.map(p => { const mine = W.slots.filter(y => same(y.who, p.n)), around = all.filter(y => same(y.who, p.n));
+    const sameDay = mine.some(y => y.day === x.day), cnt = mine.length;
+    const gaps = around.map(y => y.end <= x.start ? (x.start - y.end) / 36e5 : y.start >= x.end ? (y.start - x.end) / 36e5 : -1);
+    const rest = gaps.length ? Math.min(...gaps) : 99;
+    const why = cnt >= 5 ? "כבר 5 משמרות" : sameDay ? "כבר משובץ באותו יום" : rest < 0 ? "משובץ באותה שעה" : rest < 8 ? `רק ${Math.round(rest)} ש׳ מנוחה` : "";
+    return {n: p.n, team: p.team === team, floater: p.type === "floater", cnt, rest, ok: !why, why}; })
+    .sort((a, b) => (b.ok - a.ok) || (b.team - a.team) || (a.cnt - b.cnt) || (b.rest - a.rest));
+}
+const whenTxt = x => `${DAYN[x.day]} ${dm(addDays(x.base, x.day))} · ${SH[x.s]} · ${x.post}`;
+const inTxt = h => h < 1 ? `בעוד ${Math.max(0, Math.round(h * 60))} ד׳` : h < 24 ? `בעוד ${Math.floor(h)} ש׳` : `בעוד ${Math.round(h / 24)} ימים`;
+function cantSheetP(x){
+  const id = slotId(x), C = candidatesFor(x), ok = C.filter(c => c.ok).slice(0, 5), no = C.filter(c => !c.ok);
+  const sh = document.createElement("div"); sh.className = "sheet";
+  const msg = `צריך מחליף ל${whenTxt(x)} (${SHIFT_H[x.s]}) במקום ${me}. מי יכול?`;
+  sh.innerHTML = `<div class="card"><h2>לא אוכל להגיע</h2><p class="hint" style="margin:0">${esc(whenTxt(x))} · ${SHIFT_H[x.s]}</p>
+    <h3>מי יכול להחליף אותך</h3>
+    ${ok.length ? ok.map(c => `<div class="cand"><b>${esc(shortName(c.n))}</b><span class="pill ok">מתאים</span><small>${c.team ? "בצוות" : "מתגבר"} · ${c.cnt}/5 משמרות${c.rest < 99 ? ` · ${Math.round(c.rest)} ש׳ מנוחה` : ""}</small></div>`).join("") : `<p class="hint">אין מי שמתאים לפי הכללים. ראש הצוות יקבל את זה מיד.</p>`}
+    ${no.length ? `<details><summary class="hint" style="cursor:pointer">לא מתאימים (${no.length})</summary>${no.map(c => `<p class="hint" style="margin:2px 0">${esc(shortName(c.n))}: ${c.why}</p>`).join("")}</details>` : ""}
+    <p class="hint" style="margin:0">עד שמישהו מאשר, המשמרת עדיין שלך.</p>
+    <button type="button" class="btn pri" id="cp_send">${ok.length ? `בקש מ־${ok.length} המתאימים` : "שלח לראש הצוות"}</button>
+    <a class="btn sec" target="_blank" rel="noopener" href="${waLink(msg)}">שתף גם בקבוצה</a>
+    <button type="button" class="btn sec" id="cp_x">ביטול</button></div>`;
+  document.body.appendChild(sh);
+  sh.querySelector("#cp_x").onclick = () => sh.remove(); sh.onclick = e => { if (e.target === sh) sh.remove(); };
+  sh.querySelector("#cp_send").onclick = () => { GDOC.out = GDOC.out || {};
+    GDOC.out[id] = {id, post: x.post, day: x.day, s: x.s, base: iso(x.base), start: x.start.toISOString(), end: x.end.toISOString(), cands: ok.map(c => c.n), at: new Date().toISOString(), status: "open"};
+    saveGuard(); sh.remove(); toast("נשלח. תקבל עדכון כשמישהו לוקח"); render(); };
+}
+function viewHome(){
+  if (!me) { view.innerHTML = `<div class="card"><h2>השבוע שלי</h2><button type="button" class="btn pri" id="setme">בחר את השם שלך</button></div>`; document.getElementById("setme").onclick = pickMe; return; }
+  if (FBC && TOKEN && (gState === "idle" || gState === "loading")) { view.innerHTML = `<div class="card"><p class="hint">טוען…</p></div>`; loadGuard(); return; }
+  const now = new Date(), list = myUpcoming(me).filter(x => x.end > now), nx = list[0];
+  const offers = Object.entries((GIN && GIN.offers) || {}).filter(([, o]) => o.status === "open" || o.status === "claimed" || o.status === "blocked");
+  const reqs = Object.values((GDOC && GDOC.out) || {}).filter(o => new Date(o.end) > now && o.status !== "cancelled");
+  let h = "";
+  // offers for me first: the most time-sensitive thing on the screen
+  offers.forEach(([id, o]) => { const st = (GDOC && GDOC.claims || {})[id];
+    h += `<div class="card pof"><div class="row"><b>משמרת פתוחה בשבילך</b><span class="pill sw">במקום ${esc(shortName(o.from))}</span></div>
+      <div class="big" style="font-size:20px">${esc(o.when)}</div><p class="hint" style="margin:0">${SHIFT_H[o.s]}${o.note ? " · " + esc(o.note) : ""}</p>
+      ${o.status === "blocked" ? `<div class="alert bad">${esc(o.why || "לא מתאים לפי הכללים")}</div>` : st ? `<span class="pill ok">✓ אמרת שאתה לוקח. מחכה לאישור</span>` : `<div class="actions"><button type="button" class="btn pri" data-claim="${esc(id)}">אני לוקח</button><button type="button" class="btn sec" data-pass="${esc(id)}">לא הפעם</button></div>`}</div>`; });
+  if (nx) { const hrs = (nx.start - now) / 36e5;
+    h += `<div class="card nxt"><small class="hint">${nx.start <= now ? "אתה במשמרת עכשיו" : "המשמרת הבאה שלך"}</small><div class="big">${DAYN[nx.day]} · ${SH[nx.s]}</div>
+      <p class="hint" style="margin:0">${dm(addDays(nx.base, nx.day))} · ${hhmm(nx.start)}-${hhmm(nx.end)} · עמדה ${esc(nx.post)} · <b>${nx.start <= now ? "עכשיו" : inTxt(hrs)}</b></p>
+      ${nx.start > now ? `<div class="actions"><button type="button" class="btn sec" data-cant="0">לא אוכל להגיע</button></div>` : ""}</div>`; }
+  else h += `<div class="card"><h3>אין לך משמרות קרובות</h3><p class="hint">${WEEKS.next ? "" : "הסידור לשבוע הבא עוד לא פורסם."}</p></div>`;
+  // my open requests
+  reqs.forEach(o => { const st = ((GIN && GIN.reqs) || {})[o.id] || {};
+    const lab = st.status === "approved" ? `✓ ${esc(shortName(st.by || ""))} לוקח את המשמרת` : st.status === "awaiting" ? `${esc(shortName(st.by || ""))} מוכן לקחת. מחכה לאישור ראש הצוות` : st.status === "sent" ? `נשלח ל־${(st.to || []).map(shortName).map(esc).join(", ") || "ראש הצוות"}. עוד לא ענו` : "שולח…";
+    h += `<div class="card"><div class="row"><b>ביקשת מחליף</b><span class="pill ${st.status === "approved" ? "ok" : "sw"}">${st.status === "approved" ? "טופל" : "פתוח"}</span></div>
+      <p class="hint" style="margin:0">${esc(whenTxt({...o, base: new Date(o.base + "T00:00:00")}))}</p><p style="margin:0;font-size:14px">${lab}</p>
+      ${st.status !== "approved" ? `<p class="hint" style="margin:0">עד שמישהו מאשר, המשמרת עדיין שלך.</p><div class="actions"><button type="button" class="btn sec" data-unreq="${esc(o.id)}">בטל את הבקשה</button></div>` : ""}</div>`; });
+  // the rest of my shifts, each with its own "can't"
+  if (list.length > 1) h += `<div class="card flush"><ul class="list">${list.slice(1).map((x, i) => `<li><div class="d">${"אבגדהוש"[x.day]}׳<span>${dm(addDays(x.base, x.day))}</span></div><div class="s">${SH[x.s]} · ${esc(x.post)}<span>${hhmm(x.start)}-${hhmm(x.end)}</span></div><button type="button" class="ga dim" data-cant="${i + 1}">לא אוכל</button></li>`).join("")}</ul></div>`;
+  // constraints: only when the window is open, one tap for "as usual"
+  if (FBC && TOKEN && GDOC) { const pw = planWeeks()[0], c = (GDOC.cons || {})[iso(pw)], tpl = (GDOC.tpl || {}).cells || {};
+    if (consOpen(pw)) h += `<div class="card"><div class="row"><b>אילוצים לשבוע ${dm(pw)}</b>${c && c.at ? `<span class="pill ok">✓ הוגש</span>` : `<span class="pill sw">עד ${DAYN[lockAt(pw).getDay()]} 20:00</span>`}</div>
+      ${c && c.at ? `<p class="hint" style="margin:0">אפשר לשנות עד הנעילה.</p>` : Object.keys(tpl).length ? `<p class="hint" style="margin:0">אין שינוי מהתבנית הקבועה שלך? לחיצה אחת וזה מוגש.</p><div class="actions"><button type="button" class="btn pri" id="asusual">כמו תמיד</button><button type="button" class="btn sec" data-t2="cons">יש שינוי</button></div>` : `<p class="hint" style="margin:0">עוד אין לך תבנית קבועה. ממלאים פעם אחת, ומאז כל שבוע זה לחיצה.</p><div class="actions"><button type="button" class="btn pri" data-t2="cons">למלא תבנית</button></div>`}</div>`; }
+  view.innerHTML = h;
+  view.querySelectorAll("[data-cant]").forEach(b => b.onclick = () => cantSheetP(list[+b.dataset.cant]));
+  view.querySelectorAll("[data-claim]").forEach(b => b.onclick = () => { GDOC.claims = GDOC.claims || {}; GDOC.claims[b.dataset.claim] = new Date().toISOString(); saveGuard(); toast("נשלח. הבוט בודק שזה מתאים לכללים"); viewHome(); });
+  view.querySelectorAll("[data-pass]").forEach(b => b.onclick = () => { GDOC.passes = GDOC.passes || {}; GDOC.passes[b.dataset.pass] = new Date().toISOString(); GIN.offers[b.dataset.pass].status = "passed"; saveGuard(); viewHome(); });
+  view.querySelectorAll("[data-unreq]").forEach(b => b.onclick = () => { GDOC.out[b.dataset.unreq].status = "cancelled"; saveGuard(); toast("הבקשה בוטלה. המשמרת שלך"); viewHome(); });
+  view.querySelectorAll("[data-t2]").forEach(b => b.onclick = () => { tab = b.dataset.t2; store.set("tab", tab); render(); });
+  const au = document.getElementById("asusual"); if (au) au.onclick = () => { const pw = iso(planWeeks()[0]); GDOC.cons = GDOC.cons || {};
+    GDOC.cons[pw] = {cells: Object.assign({}, GDOC.tpl.cells), reasons: "", note: "", at: new Date().toISOString(), asUsual: true}; saveGuard(); toast("הוגש: כמו תמיד"); viewHome(); };
+}
+// lead: one inbox of decisions, sorted by shift time
+let LIN = null;
+async function viewInbox(){
+  if (!ADMIN) { tab = "home"; return render(); }
+  if (!LIN) { view.innerHTML = `<div class="card"><p class="hint">טוען…</p></div>`; try { LIN = (await fsGet("admin/" + ADMIN + "-swaps")) || {items: {}}; } catch(e) { LIN = {items: {}}; } }
+  const now = new Date(), items = Object.entries(LIN.items || {}).map(([id, o]) => ({id, ...o})).filter(o => new Date(o.end) > now).sort((a, b) => new Date(a.start) - new Date(b.start));
+  const act = items.filter(o => o.status === "awaiting" || o.status === "open"), done = items.filter(o => o.status === "approved").slice(0, 6);
+  const ws = WEEKS.cur, team = TEAM_LABEL, gaps = [];
+  for (const W of [WEEKS.cur, WEEKS.next].filter(Boolean)) { const tp = teamPosts(W.P)[team]; if (!tp) continue;
+    tp.rows.slice(0, 4).forEach((row, s_) => row[2].forEach((c, d) => { const t = nameOf(c), st = slotTime(tp.name, d, s_), end = new Date(W.base.getFullYear(), W.base.getMonth(), W.base.getDate() + d, START[s_] + 6);
+      if ((t === "—" || !t) && end > now) gaps.push({post: tp.name, day: d, s: s_, base: W.base}); })); }
+  let h = `<div class="ibx-h"><h2>דורש החלטה</h2><span class="pill ${act.length + gaps.length ? "sw" : "ok"}">${act.length + gaps.length ? act.length + gaps.length + " פתוחים" : "הכול מכוסה"}</span></div>`;
+  if (!act.length && !gaps.length) h += `<div class="card"><p style="margin:0">אין החלטות פתוחות. כל המשמרות של הצוות מאוישות.</p></div>`;
+  gaps.forEach(g => { h += `<div class="card ibx warn"><div class="row"><b>${esc(whenTxt(g))}</b><span class="pill bad">חסר שומר</span></div><p class="hint" style="margin:0">אין אף אחד בסידור. מי מתאים לפי הכללים:</p>
+    <div class="actions">${(() => { const x = {...g, ...slotTime(g.post, g.day, g.s), base: g.base}; const save = me; const c = candidatesFor({...x, who: ""}).filter(c => c.ok).slice(0, 3); return c.length ? c.map(c => `<button type="button" class="ga" data-assign="${esc(slotId(x))}|${esc(c.n)}">${esc(shortName(c.n))} · ${c.cnt}/5</button>`).join("") : `<span class="hint">אף אחד. צריך מתגבר מצוות אחר.</span>`; })()}</div></div>`; });
+  act.forEach(o => { const t = {post: o.post, day: o.day, s: o.s, base: new Date(o.base + "T00:00:00")}, hrs = (new Date(o.start) - now) / 36e5;
+    h += `<div class="card ibx${hrs < 3 ? " warn" : ""}"><div class="row"><b>${esc(whenTxt(t))}</b><span class="pill ${o.status === "awaiting" ? "ok" : "sw"}">${o.status === "awaiting" ? "מחכה לך" : inTxt(hrs)}</span></div>
+      <p class="hint" style="margin:0">${esc(shortName(o.from))} לא יכול. ${o.status === "awaiting" ? `<b>${esc(shortName(o.winner))}</b> מוכן לקחת: ${esc(o.whyOk || "עומד בכל הכללים")}.` : `נשלח ל: ${(o.cands || []).map(shortName).map(esc).join(", ") || "אף אחד"}. עוד לא ענו.`}</p>
+      ${(o.blocked || []).length ? `<p class="hint" style="margin:0">נחסם: ${o.blocked.map(b => esc(shortName(b.n)) + " (" + esc(b.why) + ")").join(", ")}</p>` : ""}
+      <div class="actions">${o.status === "awaiting" ? `<button type="button" class="btn pri" data-dec="${esc(o.id)}|approve">אשר את ${esc(shortName(o.winner))}</button><button type="button" class="btn sec" data-dec="${esc(o.id)}|reject">דחה</button>` : (o.cands || []).slice(0, 3).map(n => `<button type="button" class="ga" data-dec="${esc(o.id)}|assign|${esc(n)}">שבץ את ${esc(shortName(n))}</button>`).join("")}</div></div>`; });
+  if (done.length) h += `<h3 style="margin-top:6px">טופל</h3>` + done.map(o => `<div class="card" style="opacity:.8"><p style="margin:0;font-size:14px"><b>${esc(shortName(o.from))} ← ${esc(shortName(o.winner))}</b> · ${esc(whenTxt({post: o.post, day: o.day, s: o.s, base: new Date(o.base + "T00:00:00")}))}</p></div>`).join("");
+  h += `<p class="hint">מתעדכן מהבוט כל 20 שניות. ${LIN.at ? "עודכן " + hhmm(new Date(LIN.at)) : ""} <button type="button" class="linkbtn" id="ibr">רענן</button></p>`;
+  view.innerHTML = h;
+  document.getElementById("ibr").onclick = () => { LIN = null; viewInbox(); };
+  view.querySelectorAll("[data-dec],[data-assign]").forEach(b => b.onclick = async () => {
+    const [id, a, who] = b.dataset.dec ? b.dataset.dec.split("|") : [b.dataset.assign.split("|").slice(0, 4).join("|"), "fill", b.dataset.assign.split("|")[4]];
+    b.textContent = "…"; try { const D = (await fsGet("admin/" + ADMIN + "-decide")) || {};
+      D[id] = {act: a, who: who || "", at: new Date().toISOString(), by: me}; await fsSet("admin/" + ADMIN + "-decide", D);
+      toast(a === "reject" ? "נדחה. הבקשה פתוחה שוב" : "נשלח לבוט. הסידור יתעדכן תוך כחצי דקה"); } catch(e) { toast("לא נשמר"); }
+    setTimeout(() => { LIN = null; viewInbox(); }, 25000); });
+}
+const VIEWS = {home:viewHome, inbox:viewInbox, now:viewNow, week:viewWeek, mine:viewMine, ask:viewSwap, cons:viewCons, plan:viewAdmin, settings:viewSettings};   // 2.0: plan = the scheduler, only with the scheduler link
 if (ADMIN && FBC) { const tb = document.getElementById("tabs"); tb.style.gridTemplateColumns = "repeat(6,1fr)";
   const b = document.createElement("button"); b.type = "button"; b.setAttribute("role", "tab"); b.dataset.t = "plan";
   b.innerHTML = `<svg viewBox="0 0 24 24"><path d="M4 20h16M6 16l4-4 3 3 5-6"/><circle cx="18" cy="9" r="1.5"/></svg>שיבוץ`; tb.appendChild(b); }
@@ -1939,7 +2052,12 @@ function render(){
   document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.t === tab));
   (VIEWS[tab] || viewNow)();
 }
-document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { tab = b.dataset.t; store.set("tab", tab); render(); window.scrollTo(0,0); });
+if (PILOT) { const tb = document.getElementById("tabs");
+  const I = {home: '<svg viewBox="0 0 24 24"><path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-5h-6v5H5a1 1 0 0 1-1-1z"/></svg>', week: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>', cons: '<svg viewBox="0 0 24 24"><path d="M5 19h4l10-10-4-4L5 15z"/></svg>', inbox: '<svg viewBox="0 0 24 24"><path d="M4 13l2.5-7h11L20 13v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M4 13h4.5l1 2h5l1-2H20"/></svg>', plan: '<svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 15l4-4 3 3 5-6"/></svg>'};
+  const T = [["home", "השבוע שלי"], ["week", "הצוות"], ["cons", "מה שונה"], ...(ADMIN && FBC ? [["inbox", "דורש החלטה"], ["plan", "שיבוץ"]] : [])];
+  tb.innerHTML = T.map(([k, l]) => `<button type="button" role="tab" data-t="${k}">${I[k]}${l}</button>`).join(""); tb.style.gridTemplateColumns = `repeat(${T.length},1fr)`;
+  if (!T.some(([k]) => k === tab)) tab = "home"; if (rteam === null && me) rteam = myTeamOf(me); }
+document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { tab = b.dataset.t; store.set("tab", tab); if (tab === "inbox") LIN = null; render(); window.scrollTo(0,0); });
 render();
 setInterval(() => { if (tab === "now") viewNow(); }, 60000);
 
@@ -1962,7 +2080,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "b6c5c8788a24";
+  const BUILD = "4554b7d1ab0a";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
