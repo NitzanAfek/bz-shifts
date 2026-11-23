@@ -1532,6 +1532,9 @@ function weekFloaters(wk){
   if (!ADOC.wkFlo[wk]) { const o = {}; Object.entries(aCaps).forEach(([n, c]) => { if (c > 0) o[n] = {n: c, days: []}; }); return o; }
   return ADOC.wkFlo[wk];
 }
+// 23.11: a floater's shifts = the days marked for him (one per day, max 5). Old entries from the +/- counter
+// ("1, any day") read the same way, so Harel's 7 open days give him up to 5, not 1.
+const fCap = o => !o ? 0 : (o.days && o.days.length ? Math.min(5, o.days.length) : Math.min(5, o.n || 0));
 let wkfT = null;
 function setWeekFloater(wk, n, f){ const cur = weekFloaters(wk); ADOC.wkFlo[wk] = cur; const o = cur[n] = cur[n] || {n: 0, days: []}; f(o);
   o.n = Math.max(0, Math.min(5, o.n)); if (!o.n) delete cur[n]; draft = null; clearTimeout(wkfT); wkfT = setTimeout(saveAdmin, 700); viewAdmin(); }
@@ -1602,13 +1605,13 @@ function viewAdmin(){
     const needed = 28 - core.length * 5;
     flo.forEach(n => { if (aCaps[n] == null) aCaps[n] = ADOC.owner ? (((ADOC.alloc || {})[n] || {})[TEAM_LABEL] || 0) : ((ADOC.caps || {})[n] || 0); });
     const WK = weekFloaters(iso(ws)), allFlo = [...new Set([...flo, ...DIR.people.filter(p => p.type === "floater" && !p.left).map(p => p.n)])];
-    const fTot = Object.values(WK).reduce((a, o) => a + (o.n || 0), 0);
+    const fTot = Object.values(WK).reduce((a, o) => a + fCap(o), 0);
     if (fOpen && !allFlo.includes(fOpen)) fOpen = "";
     const oo = fOpen ? (WK[fOpen] || {n: 0, days: []}) : null;
     h += `<div class="card"><div class="plhd"><h3>טיוטה לשבוע ${dm(W[0])}</h3><select id="apost" aria-label="עמדה">${(DIR.rotation || []).map(p => `<option${p === post ? " selected" : ""}>${esc(p)}</option>`).join("")}</select></div>
       <p class="hint" style="margin:0">${core.length} קבועים × 5 = ${28 - needed}. מתגברים: <b>${fTot}</b> מתוך <b>${Math.max(0, needed)}</b> שחסרות.</p>
       <h3 style="margin:4px 0 0">מי מתגבר אותי השבוע?</h3>
-      <div class="fpick">${allFlo.map(n => { const o = WK[n]; return `<button type="button" data-fpick="${esc(n)}" class="${o && o.n ? "has" : ""}" aria-pressed="${fOpen === n}">${esc(n)}${o && o.n ? ` · ${o.n}` : ""}</button>`; }).join("")}</div>
+      <div class="fpick">${allFlo.map(n => { const c = fCap(WK[n]); return `<button type="button" data-fpick="${esc(n)}" class="${c ? "has" : ""}" aria-pressed="${fOpen === n}">${esc(n)}${c ? ` · ${c}` : ""}</button>`; }).join("")}</div>
       ${oo ? `<div class="fopen"><b>באילו ימים ${esc(fOpen)} מתגבר אותי?</b><div class="fdays">${DAYN.map((dn, d) => `<button type="button" data-fd="${esc(fOpen)}|${d}" aria-pressed="${oo.days.includes(d)}">${dn}</button>`).join("")}</div>
         <p class="hint" style="margin:0">כל יום מסומן = משמרת אחת שלו אצלך. השיבוץ בוחר את המשמרת באותו יום.</p></div>` : ""}
       <button type="button" class="btn pri" id="arun">בנה טיוטה</button></div><div id="aout"></div>`;
@@ -1706,7 +1709,7 @@ function viewAdmin(){
       const WKF = weekFloaters(iso(ws));
       const onlyDays = (n, cells) => { const o = WKF[n]; if (!o || !o.days.length) return cells;   // "שלישי בלבד": every other day is blocked
         const c = Object.assign({}, cells); for (let d = 0; d < 7; d++) if (!o.days.includes(d)) for (let s = 0; s < 4; s++) c[d + "-" + s] = 3; return c; };
-      const mk = (n, kind) => { const g = GDOCS[n] || {}; return {n, kind, cap: kind === "core" ? 5 : ((WKF[n] || {}).n || 0),
+      const mk = (n, kind) => { const g = GDOCS[n] || {}; return {n, kind, cap: kind === "core" ? 5 : fCap(WKF[n]),
         shab: shabHist(n, ws), cells: kind === "core" ? effCells(g, ws) : onlyDays(n, effCells(g, ws)), prof: Object.assign({maxN: null, nightPref: 0}, g.prof || {}, {target: 5}), led: ledgerOf(n), lastEnd: lastEnd(n)}; };
       const ppl = [...core.map(n => mk(n, "core")), ...Object.keys(WKF).filter(n => WKF[n].n > 0 && !core.includes(n)).map(n => mk(n, "floater"))];
       draft = schedule(ws, post, ppl);
@@ -1914,7 +1917,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "aa18fa9926a0";
+  const BUILD = "1856b15e075e";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
