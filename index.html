@@ -35,6 +35,10 @@ h3{font-size:15px;margin:0;color:var(--muted);font-weight:600}
 .alert.bad{background:var(--badbg);border:1px solid var(--bad)}
 .alert ul{margin:4px 0 0;padding-inline-start:18px}
 .days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.tsel{display:flex;flex-wrap:wrap;gap:6px}.tsel .chip{font-size:13px}
+table.twk{table-layout:fixed;width:100%}table.twk th,table.twk td{font-size:12px;padding:6px 1px;text-align:center;line-height:1.25}
+table.twk thead th:first-child,table.twk tbody th{width:52px}table.twk th small{display:block;font-weight:400;font-size:10px;color:var(--muted)}
+table.twk th.tday{color:var(--acc)}table.twk .n.me{font-weight:800}
 .days button{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:8px 0;min-height:48px;cursor:pointer;display:flex;flex-direction:column;align-items:center;line-height:1.2}
 .days button span{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 .days button[aria-selected="true"]{background:var(--acc);border-color:var(--acc);color:var(--card)}
@@ -352,6 +356,32 @@ function viewNow(){
 }
 
 let wk = "cur";   // "cur" | "next"
+// Team filter (Nitzan, 23.11): "all posts, one day" or one team's post for the whole week, like the team's own roster image.
+// A team's post this week = the post where most of its core guards are written.
+let rteam = store.get("rteam", null);
+function teamPosts(P){
+  const out = {};
+  for (const t of [...new Set(DIR.people.filter(x => x.team).map(x => x.team))]) {
+    let best = null, bc = 0;
+    for (const p of P) { if (p.missing) continue;
+      const names = new Set(p.rows.slice(0, 4).flatMap(r => r[2].flatMap(c => nameOf(c).split(", "))).map(canonN));
+      const c = DIR.people.filter(x => x.team === t && (x.type === "core" || x.type === "lead") && names.has(x.n)).length;
+      if (c > bc) { bc = c; best = p; } }
+    if (best) out[t] = best;
+  }
+  return out;
+}
+function teamWeekHTML(p, B, today){
+  let h = `<div class="card flush"><div class="tw"><table class="twk"><thead><tr><th><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}</th>${DAYN.map((d, i) => { const dt = addDays(B, i), isT = today >= dt && today < addDays(dt, 1);
+    return `<th class="${isT ? "tday" : ""}">${"אבגדהוש"[i]}׳<small>${dm(dt)}</small></th>`; }).join("")}</tr></thead><tbody>`;
+  for (let r = 0; r < 5; r++) {
+    h += `<tr class="${r === 4 ? "off" : ""}"><th>${r < 4 ? SH[r] : "חופש"}${r < 4 ? `<small>${["07-13","13-19","19-01","01-07"][r]}</small>` : ""}</th>`;
+    for (let d = 0; d < 7; d++) { const c = p.rows[r][2][d], t = nameOf(c), cls = typeof c === "string" ? "" : (c.c === "swap" ? "sw" : c.c === "live" ? "lv" : "nt");
+      h += `<td class="${cls}"${typeof c === "string" ? "" : ` data-why="${esc(c.m)}"`}>${t.split(", ").filter(Boolean).map(n => `<span class="n${me && same(n, me) ? " me" : ""}">${esc(n)}</span>`).join("<br>") || "·"}</td>`; }
+    h += `</tr>`;
+  }
+  return h + `</tbody></table></div></div>`;
+}
 function viewWeek(){
   const today = new Date(), N = DATA.next, NW = addDays(W0, 7);
   let h = `<div class="seg" role="tablist"><button type="button" role="tab" data-w="cur" aria-selected="${wk!=="next"}">השבוע · ${dm(W0)}</button><button type="button" role="tab" data-w="next" aria-selected="${wk==="next"}">שבוע הבא · ${dm(NW)}</button></div>`;
@@ -365,6 +395,18 @@ function viewWeek(){
   if (isNext && N.posts.some(p => p.missing)) h += `<p class="hint">חלק מהעמדות עוד לא פורסמו: ${N.posts.filter(p=>p.missing).map(p=>esc(p.name)).join(", ")}.</p>`;
   const wnote = isNext ? N.note : DATA.note;
   if (wnote) h += `<details class="wnote"><summary>הערות לסידור השבוע</summary><p>${esc(wnote).replace(/ · /g, "<br>")}</p></details>`;
+  const TP = teamPosts(P), myTeam = me && dirOf(me) && dirOf(me).team;
+  if (rteam === null) rteam = myTeam && TP[myTeam] ? myTeam : "";
+  if (rteam && !TP[rteam]) rteam = "";
+  h += `<div class="chips tsel">${[["", "כל העמדות"], ...Object.keys(TP).map(t => [t, `צוות ${t} · ${TP[t].name}`])].map(([t, l]) => `<button type="button" class="chip" data-rt="${esc(t)}" aria-pressed="${rteam === t}">${t && t === myTeam ? "⭐ " : ""}${esc(l)}</button>`).join("")}</div>`;
+  if (rteam) {
+    h += teamWeekHTML(TP[rteam], B, today) + `<p class="hint">הסידור של צוות ${esc(rteam)} לכל השבוע. משבצת צבועה = שינוי, לחיצה מראה מה השתנה.</p>`;
+    view.innerHTML = h;
+    view.querySelectorAll("td[data-why]").forEach(td => td.onclick = () => toast(td.dataset.why));
+    view.querySelectorAll("[data-rt]").forEach(b => b.onclick = () => { rteam = b.dataset.rt; store.set("rteam", rteam); viewWeek(); });
+    view.querySelectorAll("[data-w]").forEach(b => b.onclick = () => { wk = b.dataset.w; viewWeek(); });
+    return;
+  }
   h += `<div class="days" role="tablist">${DAYN.map((d,i)=>{ const dt = addDays(B,i);
     const isT = today >= dt && today < addDays(dt,1);
     return `<button type="button" role="tab" class="${isT?"today":""}" aria-selected="${i===day}" data-i="${i}">${d}<span>${isT?"היום":dm(dt)}</span></button>`; }).join("")}</div>`;
@@ -383,6 +425,7 @@ function viewWeek(){
   view.innerHTML = h;
   view.querySelectorAll("td[data-why]").forEach(td => td.onclick = () => toast(td.dataset.why));
   view.querySelectorAll(".days button").forEach(b => b.onclick = () => { day = +b.dataset.i; viewWeek(); });
+  view.querySelectorAll("[data-rt]").forEach(b => b.onclick = () => { rteam = b.dataset.rt; store.set("rteam", rteam); viewWeek(); });
   view.querySelectorAll("[data-w]").forEach(b => b.onclick = () => { wk = b.dataset.w; viewWeek(); });
 }
 
@@ -1855,7 +1898,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "2070622d55dd";
+  const BUILD = "f79b7dfdc51b";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
