@@ -136,6 +136,13 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 @keyframes mflash{0%{transform:scale(1.03)}100%{transform:scale(1)}}.meter.flash{animation:mflash .35s ease-out}
 .msave{margin-inline-start:auto;font-size:12px}
 .gaps{border-color:var(--bad)}
+.plhd{display:flex;align-items:center;justify-content:space-between;gap:8px}.plhd h3{margin:0}.plhd select{width:auto;padding:6px 10px}
+.fpick{display:flex;flex-wrap:wrap;gap:6px}
+.fpick button,.fdays button,.teamsel button{font:inherit;font-size:14px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.fpick button.has{border-color:var(--good);color:var(--good);font-weight:700}
+.fpick button[aria-pressed="true"],.teamsel button[aria-pressed="true"]{background:var(--good);color:var(--card);border-color:var(--good);font-weight:700}
+.fopen{display:grid;gap:8px;background:var(--goodbg);border:1px solid var(--good);border-radius:12px;padding:10px}
+.teamsel{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}.teamsel button{padding:8px 4px;font-size:13px;line-height:1.2}.teamsel button small{display:block;font-size:11px;opacity:.8}
 .wkbar{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);flex-wrap:wrap}.wkbar span{margin-inline-end:auto}
 .wkbar button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:5px 10px;cursor:pointer}
 .wkbar button[aria-pressed="true"]{background:var(--acc);color:var(--card);border-color:var(--acc)}
@@ -413,9 +420,14 @@ function viewWeek(){
   const TP = teamPosts(P), myTeam = me && dirOf(me) && dirOf(me).team;
   if (rteam === null) rteam = myTeam && TP[myTeam] ? myTeam : "";
   if (rteam && !TP[rteam]) rteam = "";
-  h += `<div class="chips tsel">${[["", "כל העמדות"], ...Object.keys(TP).map(t => [t, `צוות ${t} · ${TP[t].name}`])].map(([t, l]) => `<button type="button" class="chip" data-rt="${esc(t)}" aria-pressed="${rteam === t}">${t && t === myTeam ? "⭐ " : ""}${esc(l)}</button>`).join("")}</div>`;
+  h += `<div class="teamsel">${[["", "כל העמדות", "יום אחד"], ...Object.keys(TP).map(t => [t, t, TP[t].name])].map(([t, l, sub]) => `<button type="button" data-rt="${esc(t)}" aria-pressed="${rteam === t}">${t && t === myTeam ? "⭐ " : ""}${esc(l)}<small>${esc(sub)}</small></button>`).join("")}</div>`;
   if (rteam) {
-    h += teamWeekHTML(TP[rteam], B, today) + `<p class="hint">הסידור של צוות ${esc(rteam)} לכל השבוע. משבצת צבועה = שינוי, לחיצה מראה מה השתנה.</p>`;
+    // the team's guards who worked another post that day (e.g. Nitzan, Sunday noon at ש״ג) get a line under the grid
+    const tm = DIR.people.filter(x => x.team === rteam).map(x => x.n), away = [];
+    for (let d = 0; d < 7; d++) for (const q of P) { if (q === TP[rteam] || q.missing) continue;
+      for (let s_ = 0; s_ < 4; s_++) for (const n of nameOf(q.rows[s_][2][d]).split(", ")) if (n && tm.includes(canonN(n))) away.push(`${DAYN[d]} ${SH[s_]}: ${n} ב${q.name}`); }
+    h += teamWeekHTML(TP[rteam], B, today) + (away.length ? `<div class="card"><b style="font-size:14px">משמרות של הצוות בעמדות אחרות</b><p class="hint" style="margin:0">${away.map(esc).join("<br>")}</p></div>` : "")
+      + `<p class="hint">משבצת צבועה = שינוי, לחיצה מראה מה השתנה.</p>`;
     view.innerHTML = h;
     view.querySelectorAll("td[data-why]").forEach(td => td.onclick = () => toast(td.dataset.why));
     view.querySelectorAll("[data-rt]").forEach(b => b.onclick = () => { rteam = b.dataset.rt; store.set("rteam", rteam); viewWeek(); });
@@ -1512,7 +1524,7 @@ function draftText(d){
   if (fairSlots(d).length) t += `\n\n⚖ = אין מתנדב למשמרת שבת, שובץ לפי ספר ההוגנות (מי שהכי מזמן לא עשה שבת)`;
   return t;
 }
-let aWeek = 0, aPost = "", aCaps = {};
+let aWeek = 0, aPost = "", aCaps = {}, fOpen = "";
 // ADOC.wkFlo[weekIso][name] = {n: shifts, days: [0..6]} (empty days = any day). Before a week has entries, the
 // standing allocation (aCaps) is the default.
 function weekFloaters(wk){
@@ -1565,7 +1577,8 @@ function viewAdmin(){
   } else if (aTab === "pool") {
     // the guard pool by phone: everyone in the 4 bunker WhatsApp groups, kept up to date by the bot
     const R = (ROSTER && ROSTER.people) || {}, rows = Object.entries(R);
-    const act = rows.filter(([, p]) => !p.left), gone = rows.filter(([, p]) => p.left);
+    const HID = ADOC.hiddenPhones || {};   // 23.11: numbers Nitzan took off the list (not a guard, or left)
+    const act = rows.filter(([k, p]) => !p.left && !HID[k]), gone = rows.filter(([k, p]) => p.left || HID[k]);
     const cnt = f => act.filter(([, p]) => f(p)).length;
     const ph = k => ("0" + k.split("@")[0].slice(3)).replace(/^(\d{3})(\d{3})(\d{4})$/, "$1-$2-$3");
     const names = DIR.people.map(p => p.n);
@@ -1577,16 +1590,9 @@ function viewAdmin(){
       <div class="card flush"><ul class="list">
       ${act.map(([k, p]) => { const tags = [`${p.groups.length}/4 קבוצות`, p.app ? "✓ נרשם" : "", p.verified ? "✓ אימת" : "", p.seen ? "נכנס " + esc(p.seen.slice(8, 10) + "." + p.seen.slice(5, 7).replace(/^0/, "")) : "", p.cal ? "✓ יומן" : "", p.push ? "🔔" : ""].filter(Boolean);
         return `<li style="flex-wrap:wrap"><div class="s" style="min-width:0">${sel(k, p.name)}<span><bdi dir="ltr">${ph(k)}</bdi>${p.wa && p.wa !== p.name ? " · בוואטסאפ: " + esc(p.wa) : ""}</span>
-          <span class="tags">${tags.map(t => `<i>${t}</i>`).join("")}</span></div>${p.name && DIR.people.some(x => x.n === p.name && !x.left) ? `<button type="button" class="ga dim" data-off="${esc(p.name)}">יצא מהמשימה</button>` : ""}</li>`; }).join("")}
+          <span class="tags">${tags.map(t => `<i>${t}</i>`).join("")}</span></div>${p.name && DIR.people.some(x => x.n === p.name && !x.left) ? `<button type="button" class="ga dim" data-off="${esc(p.name)}">יצא מהמשימה</button>` : `<button type="button" class="ga dim" data-hideph="${esc(k)}">הסר מהרשימה</button>`}</li>`; }).join("")}
       </ul></div>
-      ${(() => { const TL = [...new Set(DIR.people.map(p => p.team).filter(Boolean))], AL = ADOC.alloc = ADOC.alloc || {}; return `<div class="card"><h3>מתגברים לכל צוות</h3>
-      <p class="hint" style="margin:0">כמה משמרות כל מתגבר נותן לכל צוות בשבוע רגיל. עד 5 משמרות למתגבר בכל הבונקר.</p>
-      <div class="ftm">${TL.map(t => { const nc = DIR.people.filter(p => p.team === t && !p.left && (p.type === "core" || p.type === "lead")).length, nd = Math.max(0, 28 - nc * 5), gv = flo.reduce((a, n) => a + ((AL[n] || {})[t] || 0), 0);
-        return `<div class="${gv >= nd ? "ok" : "short"}"><b>${esc(t)}</b><span>${gv} מתוך ${nd}</span></div>`; }).join("")}</div>
-      <div class="fcards">${flo.map(n => { const tot = TL.reduce((a, t) => a + ((AL[n] || {})[t] || 0), 0);
-        return `<div class="fcard"><div class="fch"><b>${esc(n)}</b><span class="ftot${tot >= 5 ? " full" : ""}">${tot}/5</span><button class="frm" data-rmf="${esc(n)}" aria-label="הסר את ${esc(n)}">הסר</button></div>
-          <div class="fst">${TL.map(t => { const v = (AL[n] || {})[t] || 0; return `<div class="fsc${v ? " on" : ""}"><span>${esc(t)}</span><div><button type="button" data-alstep="${esc(n)}|${esc(t)}|-1" aria-label="פחות">−</button><b>${v}</b><button type="button" data-alstep="${esc(n)}|${esc(t)}|1" aria-label="יותר"${tot >= 5 ? " disabled" : ""}>+</button></div></div>`; }).join("")}</div></div>`; }).join("")}</div>
-      <p class="hint" style="margin:0">ירוק = הצוות מכוסה. לשבוע מסוים (למשל "רק בשלישי") מגדירים בטאב שיבוץ.</p></div>`; })()}
+
       <div class="card"><label class="f">הוסף שומר לרשימה<select id="addg"><option value="">בחר…</option>${DIR.people.filter(p => !p.left && !core.includes(p.n) && !flo.includes(p.n)).map(p => `<option>${esc(p.n)}</option>`).join("")}</select></label>
       <p class="hint">קבוע = 5 משמרות ו־2 ימי חופש. מתגבר = משלים את 28 המשמרות. "עוד לא מילא" אחרי שלישי 12:00 = כדאי תזכורת.</p></div>
       ${(() => { const out = DIR.people.filter(p => p.left).sort((a, b) => b.left.localeCompare(a.left)); return out.length ? `<div class="card"><details><summary class="hint" style="cursor:pointer">יצאו מהמשימה (${out.length})</summary>${out.map(p => `<p class="hint" style="margin:4px 0">${esc(p.n)} · מ־${esc(p.left.slice(8, 10) + "." + p.left.slice(5, 7))}</p>`).join("")}</details></div>` : ""; })()}
@@ -1596,18 +1602,15 @@ function viewAdmin(){
     const needed = 28 - core.length * 5;
     flo.forEach(n => { if (aCaps[n] == null) aCaps[n] = ADOC.owner ? (((ADOC.alloc || {})[n] || {})[TEAM_LABEL] || 0) : ((ADOC.caps || {})[n] || 0); });
     const WK = weekFloaters(iso(ws)), allFlo = [...new Set([...flo, ...DIR.people.filter(p => p.type === "floater" && !p.left).map(p => p.n)])];
-    const fRow = n => { const o = WK[n] || {n: 0, days: []};
-      return `<div class="frow${o.n ? " on" : ""}"><div class="fhd"><b>${esc(n)}</b>
-        <span class="step"><button type="button" data-fs="${esc(n)}|-1" aria-label="פחות">−</button><b>${o.n}</b><button type="button" data-fs="${esc(n)}|1" aria-label="יותר">+</button></span></div>
-        ${o.n ? `<div class="fdays">${DAYN.map((dn, d) => `<button type="button" data-fd="${esc(n)}|${d}" aria-pressed="${o.days.includes(d)}">${dn}</button>`).join("")}</div>
-        <p class="hint" style="margin:0">${o.days.length ? "רק ב" + o.days.map(d => DAYN[d]).join(", ") : "כל יום (סמן ימים כדי להגביל)"}</p>` : ""}</div>`; };
     const fTot = Object.values(WK).reduce((a, o) => a + (o.n || 0), 0);
-    h += `<div class="card"><h3>טיוטה לשבוע ${dm(W[0])}</h3>
-      <label class="f">עמדת הצוות (לפי הסבב: ${esc(teamPostFor(ws))})<select id="apost">${(DIR.rotation || []).map(p => `<option${p === post ? " selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
-      <p class="hint">${core.length} קבועים × עד 5 = ${28 - needed}. חסרות <b>${Math.max(0, needed)}</b> משמרות ממתגברים.</p>
-      <h3 style="margin-top:6px">מתגברים שקיבלתי לשבוע ${dm(ws)} · ${fTot} משמרות</h3>
-      <p class="hint" style="margin:0">מה שסוכם בקבוצת ראשי הצוותים: כמה משמרות, ובאילו ימים בלבד. נשמר לשבוע הזה.</p>
-      <div class="flist">${allFlo.map(fRow).join("")}</div>
+    if (fOpen && !allFlo.includes(fOpen)) fOpen = "";
+    const oo = fOpen ? (WK[fOpen] || {n: 0, days: []}) : null;
+    h += `<div class="card"><div class="plhd"><h3>טיוטה לשבוע ${dm(W[0])}</h3><select id="apost" aria-label="עמדה">${(DIR.rotation || []).map(p => `<option${p === post ? " selected" : ""}>${esc(p)}</option>`).join("")}</select></div>
+      <p class="hint" style="margin:0">${core.length} קבועים × 5 = ${28 - needed}. מתגברים: <b>${fTot}</b> מתוך <b>${Math.max(0, needed)}</b> שחסרות.</p>
+      <h3 style="margin:4px 0 0">מי מתגבר אותי השבוע?</h3>
+      <div class="fpick">${allFlo.map(n => { const o = WK[n]; return `<button type="button" data-fpick="${esc(n)}" class="${o && o.n ? "has" : ""}" aria-pressed="${fOpen === n}">${esc(n)}${o && o.n ? ` · ${o.n}` : ""}</button>`; }).join("")}</div>
+      ${oo ? `<div class="fopen"><b>באילו ימים ${esc(fOpen)} מתגבר אותי?</b><div class="fdays">${DAYN.map((dn, d) => `<button type="button" data-fd="${esc(fOpen)}|${d}" aria-pressed="${oo.days.includes(d)}">${dn}</button>`).join("")}</div>
+        <p class="hint" style="margin:0">כל יום מסומן = משמרת אחת שלו אצלך. השיבוץ בוחר את המשמרת באותו יום.</p></div>` : ""}
       <button type="button" class="btn pri" id="arun">בנה טיוטה</button></div><div id="aout"></div>`;
   } else {
     // 23.11: one table, colored against the team average; Shabbat order first; the full board folded
@@ -1628,6 +1631,8 @@ function viewAdmin(){
   view.querySelectorAll("[data-mk]").forEach(b => b.onclick = async () => { b.textContent = "יוצר…"; try { await makeLink(b.dataset.mk); } catch(e) { toast("לא נוצר"); } viewAdmin(); });
   view.querySelectorAll("[data-cpl]").forEach(b => b.onclick = () => copy(linkFor(GDOCS[b.dataset.cpl].token)));
   view.querySelectorAll("[data-see]").forEach(b => b.onclick = () => guardSheet(b.dataset.see));
+  view.querySelectorAll("[data-hideph]").forEach(b => b.onclick = async () => { if (!confirm("להסיר את המספר הזה מרשימת השומרים?")) return;
+    ADOC.hiddenPhones = ADOC.hiddenPhones || {}; ADOC.hiddenPhones[b.dataset.hideph] = new Date().toISOString().slice(0, 10); await saveAdmin(); viewAdmin(); });
   view.querySelectorAll("[data-off]").forEach(b => b.onclick = async () => { const n = b.dataset.off;
     const d = prompt(`${n} יוצא מהמשימה. מאיזה תאריך הוא כבר לא משובץ? (יום.חודש)`, `${new Date().getDate()}.${new Date().getMonth() + 1}`); if (!d) return;
     const m = d.trim().match(/^(\d{1,2})[./](\d{1,2})$/); if (!m) { toast("תאריך בפורמט יום.חודש, למשל 25.11"); return; }
@@ -1690,8 +1695,9 @@ function viewAdmin(){
   view.querySelectorAll("[data-aw]").forEach(b => b.onclick = () => { aWeek = +b.dataset.aw; aPost = ""; draft = null; viewAdmin(); });
   const ap = document.getElementById("apost"); if (ap) ap.onchange = () => { aPost = ap.value; draft = null; };
   view.querySelectorAll("[data-cap]").forEach(i => i.oninput = () => { aCaps[i.dataset.cap] = Math.max(0, Math.min(5, +i.value || 0)); });
-  view.querySelectorAll("[data-fs]").forEach(b => b.onclick = () => { const [n, dlt] = b.dataset.fs.split("|"); setWeekFloater(iso(W[0]), n, o => o.n += +dlt); });
-  view.querySelectorAll("[data-fd]").forEach(b => b.onclick = () => { const [n, d] = b.dataset.fd.split("|"); setWeekFloater(iso(W[0]), n, o => { o.days = o.days.includes(+d) ? o.days.filter(x => x !== +d) : [...o.days, +d].sort(); }); });
+  view.querySelectorAll("[data-fpick]").forEach(b => b.onclick = () => { fOpen = fOpen === b.dataset.fpick ? "" : b.dataset.fpick; viewAdmin(); });
+  view.querySelectorAll("[data-fd]").forEach(b => b.onclick = () => { const [n, d] = b.dataset.fd.split("|"); setWeekFloater(iso(W[0]), n, o => {
+    o.days = o.days.includes(+d) ? o.days.filter(x => x !== +d) : [...o.days, +d].sort(); o.n = Math.min(5, o.days.length); }); });   // 23.11: one shift per marked day
   const run = document.getElementById("arun");
   if (run) { run.onclick = () => { run.textContent = "מחשב…"; setTimeout(() => {
       const ws = W[0], post = aPost || teamPostFor(ws);
@@ -1908,7 +1914,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "34fbaab34e0c";
+  const BUILD = "aa18fa9926a0";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
