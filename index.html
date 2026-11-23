@@ -427,8 +427,8 @@ function viewMine(){
   }
   // 4. constraints for the open week
   if (FBC && TOKEN && GDOC) {
-    const ws = planWeeks()[0], c = (GDOC.cons || {})[iso(ws)], lk = lockAt(ws);
-    h += `<div class="card"><h3>אילוצים לשבוע ${dm(ws)}</h3>${c && c.at ? `<span class="pill ok">✓ הגשת. אפשר לשנות עד ${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00</span>`
+    const ws = planWeeks()[0], c = (GDOC.cons || {})[iso(ws)], lk = lockAt(ws), op = openAt(ws);
+    h += `<div class="card"><h3>אילוצים לשבוע ${dm(ws)}</h3>${!consOpen(ws) ? `<p class="hint">נפתחים ב${DAYN[op.getDay()]} ${dm(op)} ב־20:00, אחרי פרסום הסידור הנוכחי. ננעלים ב${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00.</p>` : c && c.at ? `<span class="pill ok">✓ הגשת. אפשר לשנות עד ${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00</span>`
       : `<p class="hint">עוד לא עדכנת. ננעל ב${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00. בלי עדכון משבצים לפי התבנית שלך.</p><button type="button" class="btn pri" id="gocons">לעדכון אילוצים</button>`}</div>`;
   } else if (FBC && canVerify()) h += `<p class="hint">כדי לשמור אילוצים ולקבל התראות: ⚙ הגדרות ← אמת אותי בוואטסאפ.</p>`;
   // 5. what is ahead (past shifts are gone)
@@ -798,6 +798,10 @@ const teamOfName = n => (dirOf(n) || {}).team || "";
 // ---- weeks: a week's constraints lock on the Tuesday before it at 20:00 ----
 const sundayOnOrAfter = d => addDays(d, (7 - d.getDay()) % 7);
 const iso = d => d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
+// The window opens Wednesday 20:00 (Nitzan, 23.11): after the locked week's roster is published, so a guard never
+// fills two weeks at once. Wednesday 20:00 -> Sunday 20:00.
+const openAt = ws => { const t = addDays(ws, -11); return new Date(t.getFullYear(), t.getMonth(), t.getDate(), 20, 0); };
+const consOpen = ws => new Date() >= openAt(ws);
 const lockAt = ws => { const t = addDays(ws, -7); return new Date(t.getFullYear(), t.getMonth(), t.getDate(), 20, 0); };   // Sunday 20:00 the week before (Nitzan, 20.11)
 function planWeeks(){   // one open week (Nitzan, 21.11): the next week whose Sunday-20:00 lock has not passed
   let w = sundayOnOrAfter(addDays(new Date(), 1));
@@ -960,9 +964,15 @@ function viewCons(){
   if (gState !== "ok") { view.innerHTML = `<div class="card"><h2>אילוצים</h2><div class="alert bad">${gState === "missing" ? "הקישור האישי לא מוכר. בקש מניצן קישור חדש." : "אין חיבור לשרת כרגע. נסה שוב בעוד רגע."}</div></div>`; if (gState === "error") { gState = "idle"; } return; }
   const W = planWeeks(), G = GDOC; G.cons = G.cons || {}; G.tpl = G.tpl || {cells: {}}; G.prof = G.prof || {maxN: 2, nightPref: 0, note: ""};
   if (consTab === "prof" || consTab === "w1") consTab = "tpl";
-  const tabs = [["w0", "שבוע " + dm(W[0])], ["tpl", "התבנית שלי"]];
+  const tabs = [["w0", consOpen(W[0]) ? "שבוע " + dm(W[0]) : "🔒 שבוע " + dm(addDays(W[0], -7))], ["tpl", "התבנית שלי"]];
   let h = `<div class="seg" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-ct="${k}" aria-selected="${consTab === k}">${l}</button>`).join("")}</div>`;
-  if (consTab === "w0" || consTab === "w1") {
+  if ((consTab === "w0" || consTab === "w1") && !consOpen(W[0])) {
+    const lw = addDays(W[0], -7), lc = G.cons[iso(lw)], op = openAt(W[0]);
+    h += `<div class="card"><h3>🔒 שבוע ${dm(lw)} נעול ובשיבוץ</h3>
+      <p class="hint" style="margin:0">האילוצים לשבוע ${dm(W[0])} נפתחים ב${DAYN[op.getDay()]} ${dm(op)} ב־20:00, אחרי שהסידור של ${dm(lw)} מתפרסם. בינתיים אפשר לעדכן את התבנית הקבועה.</p>
+      <h3 style="margin-top:6px">מה הגשת לשבוע ${dm(lw)}</h3>${lc && Object.keys(lc.cells || {}).length ? readGrid(lc.cells, lw) : `<p class="hint">לא הגשת לשבוע הזה, אז שובצת לפי התבנית.</p>`}
+      <button type="button" class="btn sec" id="gotpl">לתבנית הקבועה</button></div>`;
+  } else if (consTab === "w0" || consTab === "w1") {
     const ws = W[consTab === "w0" ? 0 : 1], key = iso(ws);
     if (!G.cons[key]) G.cons[key] = {cells: Object.assign({}, G.tpl.cells), reasons: "", note: ""};
     const C = G.cons[key], B = blockSplit(C.cells, G.tplOk, (G.consOk || {})[key]);
@@ -1000,6 +1010,7 @@ function viewCons(){
   }
   const y0 = window.scrollY; view.innerHTML = h; window.scrollTo(0, y0);   // a tap re-renders; keep the guard where he was
   { const m = view.querySelector(".mmsg"); if (m && lastMeter && m.textContent !== lastMeter) m.parentElement.classList.add("flash"); lastMeter = m ? m.textContent : ""; }
+  const gt = document.getElementById("gotpl"); if (gt) gt.onclick = () => { consTab = "tpl"; store.set("consTab", consTab); viewCons(); };
   view.querySelectorAll("[data-ct]").forEach(b => b.onclick = () => { consTab = b.dataset.ct; store.set("consTab", consTab); saveMsg = ""; viewCons(); });
   const touch = () => { const t = new Date().toISOString(); if (consTab.startsWith("w")) G.cons[iso(W[consTab === "w0" ? 0 : 1])].at = t; saveGuard(); };
   view.querySelectorAll("[data-brush]").forEach(b => b.onclick = () => { brush = +b.dataset.brush; store.set("brush", brush); viewCons(); });
@@ -1457,7 +1468,7 @@ function viewAdmin(){
   if (aTab === "pool" && !ADOC.owner) aTab = "team";
   let h = `<div class="card"><h2>צוות ${esc(TEAM_LABEL)}</h2><p class="hint">ראש צוות: ${esc(LEAD_OF[TEAM_LABEL] || TEAM_LABEL)}. רואים רק את הצוות הזה.</p></div>
     <div class="seg" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-at="${k}" aria-selected="${aTab === k}">${l}</button>`).join("")}</div>
-    ${adminWeeks().length > 1 ? `<div class="seg wks">${adminWeeks().map((w, i) => `<button type="button" data-aw="${i}" aria-selected="${aWeek === i}">שבוע ${dm(w)}${i === 0 ? " · נעול, לשיבוץ" : " · פתוח לאילוצים"}</button>`).join("")}</div>` : ""}`;
+    ${adminWeeks().length > 1 ? `<div class="seg wks">${adminWeeks().map((w, i) => `<button type="button" data-aw="${i}" aria-selected="${aWeek === i}">שבוע ${dm(w)}${i === 0 ? " · נעול, לשיבוץ" : consOpen(w) ? " · פתוח לאילוצים" : " · נפתח ב" + DAYN[openAt(w).getDay()] + " " + dm(openAt(w))}</button>`).join("")}</div>` : ""}`;
   const AW = adminWeeks(); if (aWeek >= AW.length) aWeek = 0;
   const core = teamCore(ADOC), flo = teamFloaters(ADOC), W = [AW[aWeek]]; AWS = W[0];
   if (aTab === "team") {
@@ -1811,7 +1822,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "1c4e34ab8aaa";
+  const BUILD = "7552e1f3e474";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
