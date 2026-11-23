@@ -1545,7 +1545,7 @@ function viewAdmin(){
       // 23.11 layout: name + status chips on top, warnings, then a row of actions (it was squeezed into one column on a phone)
       const chip = (ok, txt) => `<span class="gch${ok ? " ok" : ""}">${ok ? "✓" : "○"} ${txt}</span>`;
       const hasCons = !!(g.cons && g.cons[ws] && g.cons[ws].at), hasTpl = !!(g.tpl && Object.keys(g.tpl.cells || {}).length);
-      const link = "", _unused = g.token ? `<a class="ga" target="_blank" rel="noopener" href="${waLink(`היי ${first(n)} 👋\nזה הקישור האישי שלך לאפליקציית הבונקר: אילוצים, התבנית השבועית שלך ואישור משמרות.\n${linkFor(g.token)}\nהקישור אישי, אל תעביר אותו.`)}">📤 קישור</a><button class="ga" data-cpl="${esc(n)}">העתק</button>` : `<button class="ga" data-mk="${esc(n)}">צור קישור</button>`;
+      const link = "";   // 23.11: no personal links in the interface
       return `<li class="grow"><div class="ghd"><button type="button" class="linkbtn" data-see="${esc(n)}">${esc(n)}</button><span class="gk">${kind}</span>${(g.push || []).length ? '<span title="התראות פעילות">🔔</span>' : ""}</div>
         <div class="gchs">${g.token ? chip(!!g.verified, "אומת") + chip(hasTpl, "תבנית") + chip(hasCons, "אילוצים " + dm(W[0])) : '<span class="gch">עוד לא נרשם לאפליקציה</span>'}</div>
         ${g.prof && g.prof.note ? `<p class="gnote">💬 ${esc(g.prof.note)}</p>` : ""}
@@ -1908,7 +1908,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "e39d1369f07c";
+  const BUILD = "34fbaab34e0c";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
