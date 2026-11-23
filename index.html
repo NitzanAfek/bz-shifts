@@ -244,8 +244,8 @@ posts.forEach(p => p.rows.slice(0,4).forEach((row, s) => row[2].forEach((c, day)
   const t = slotTime(p.name, day, s);
   if (nameOf(c) !== "—") SLOTS.push({post:p.name, color:p.color, day, s, who:nameOf(c), cell:c, ...t});
 })));
-// roster names, plus the mission's commanders from the directory (22.11: Moshe, the deputy, holds no shifts but verifies)
-const PEOPLE = [...new Set([...posts.flatMap(p => p.rows.flatMap(r => r[2].flatMap(c => nameOf(c).split(", ")))), ...((DATA.dir || {}).people || []).filter(p => p.type === "commander" && !p.left).map(p => p.n)])].filter(n => n && n !== "—").sort((a,b)=>a.localeCompare(b,"he"));
+// roster names, plus commanders and floaters from the directory (22.11 Moshe; 23.11 new floaters with no shifts yet can still verify)
+const PEOPLE = [...new Set([...posts.flatMap(p => p.rows.flatMap(r => r[2].flatMap(c => nameOf(c).split(", ")))), ...((DATA.dir || {}).people || []).filter(p => (p.type === "commander" || p.type === "floater") && !p.left).map(p => p.n)])].filter(n => n && n !== "—").sort((a,b)=>a.localeCompare(b,"he"));
 const postOf = name => { for (const p of posts) if (p.rows.some(r => r[2].some(c => nameOf(c).split(", ").some(n => same(n,name))))) return p.name; return ""; };
 const isWeekend = (day, s) => day >= 5 || (day === 4 && s >= 2);
 const myShifts = me => SLOTS.filter(x => same(x.who, me)).sort((a,b)=>a.start-b.start);
@@ -1795,7 +1795,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "7d945cc10d0c";
+  const BUILD = "072a4f014d94";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
