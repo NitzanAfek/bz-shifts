@@ -2024,18 +2024,18 @@ async function viewInbox(){
   let h = `<div class="ibx-h"><h2>דורש החלטה</h2><span class="pill ${act.length + gaps.length ? "sw" : "ok"}">${act.length + gaps.length ? act.length + gaps.length + " פתוחים" : "הכול מכוסה"}</span></div>`;
   if (!act.length && !gaps.length) h += `<div class="card"><p style="margin:0">אין החלטות פתוחות. כל המשמרות של הצוות מאוישות.</p></div>`;
   gaps.forEach(g => { h += `<div class="card ibx warn"><div class="row"><b>${esc(whenTxt(g))}</b><span class="pill bad">חסר שומר</span></div><p class="hint" style="margin:0">אין אף אחד בסידור. מי מתאים לפי הכללים:</p>
-    <div class="actions">${(() => { const x = {...g, ...slotTime(g.post, g.day, g.s), base: g.base}; const save = me; const c = candidatesFor({...x, who: ""}).filter(c => c.ok).slice(0, 3); return c.length ? c.map(c => `<button type="button" class="ga" data-assign="${esc(slotId(x))}|${esc(c.n)}">${esc(shortName(c.n))} · ${c.cnt}/5</button>`).join("") : `<span class="hint">אף אחד. צריך מתגבר מצוות אחר.</span>`; })()}</div></div>`; });
+    <div class="actions">${(() => { const x = {...g, ...slotTime(g.post, g.day, g.s), base: g.base}; const save = me; const c = candidatesFor({...x, who: ""}).filter(c => c.ok).slice(0, 3); return c.length ? c.map(c => `<button type="button" class="ga" data-id="${esc(slotId(x))}" data-a="fill" data-who="${esc(c.n)}">${esc(shortName(c.n))} · ${c.cnt}/5</button>`).join("") : `<span class="hint">אף אחד. צריך מתגבר מצוות אחר.</span>`; })()}</div></div>`; });
   act.forEach(o => { const t = {post: o.post, day: o.day, s: o.s, base: new Date(o.base + "T00:00:00")}, hrs = (new Date(o.start) - now) / 36e5;
     h += `<div class="card ibx${hrs < 3 ? " warn" : ""}"><div class="row"><b>${esc(whenTxt(t))}</b><span class="pill ${o.status === "awaiting" ? "ok" : "sw"}">${o.status === "awaiting" ? "מחכה לך" : inTxt(hrs)}</span></div>
       <p class="hint" style="margin:0">${esc(shortName(o.from))} לא יכול. ${o.status === "awaiting" ? `<b>${esc(shortName(o.winner))}</b> מוכן לקחת: ${esc(o.whyOk || "עומד בכל הכללים")}.` : `נשלח ל: ${(o.cands || []).map(shortName).map(esc).join(", ") || "אף אחד"}. עוד לא ענו.`}</p>
       ${(o.blocked || []).length ? `<p class="hint" style="margin:0">נחסם: ${o.blocked.map(b => esc(shortName(b.n)) + " (" + esc(b.why) + ")").join(", ")}</p>` : ""}
-      <div class="actions">${o.status === "awaiting" ? `<button type="button" class="btn pri" data-dec="${esc(o.id)}|approve">אשר את ${esc(shortName(o.winner))}</button><button type="button" class="btn sec" data-dec="${esc(o.id)}|reject">דחה</button>` : (o.cands || []).slice(0, 3).map(n => `<button type="button" class="ga" data-dec="${esc(o.id)}|assign|${esc(n)}">שבץ את ${esc(shortName(n))}</button>`).join("")}</div></div>`; });
+      <div class="actions">${o.status === "awaiting" ? `<button type="button" class="btn pri" data-id="${esc(o.id)}" data-a="approve">אשר את ${esc(shortName(o.winner))}</button><button type="button" class="btn sec" data-id="${esc(o.id)}" data-a="reject">דחה</button>` : (o.cands || []).slice(0, 3).map(n => `<button type="button" class="ga" data-id="${esc(o.id)}" data-a="assign" data-who="${esc(n)}">שבץ את ${esc(shortName(n))}</button>`).join("")}</div></div>`; });
   if (done.length) h += `<h3 style="margin-top:6px">טופל</h3>` + done.map(o => `<div class="card" style="opacity:.8"><p style="margin:0;font-size:14px"><b>${esc(shortName(o.from))} ← ${esc(shortName(o.winner))}</b> · ${esc(whenTxt({post: o.post, day: o.day, s: o.s, base: new Date(o.base + "T00:00:00")}))}</p></div>`).join("");
   h += `<p class="hint">מתעדכן מהבוט כל 20 שניות. ${LIN.at ? "עודכן " + hhmm(new Date(LIN.at)) : ""} <button type="button" class="linkbtn" id="ibr">רענן</button></p>`;
   view.innerHTML = h;
   document.getElementById("ibr").onclick = () => { LIN = null; viewInbox(); };
-  view.querySelectorAll("[data-dec],[data-assign]").forEach(b => b.onclick = async () => {
-    const [id, a, who] = b.dataset.dec ? b.dataset.dec.split("|") : [b.dataset.assign.split("|").slice(0, 4).join("|"), "fill", b.dataset.assign.split("|")[4]];
+  view.querySelectorAll("#view [data-a]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.id, a = b.dataset.a, who = b.dataset.who || "";
     b.textContent = "…"; try { const D = (await fsGet("admin/" + ADMIN + "-decide")) || {};
       D[id] = {act: a, who: who || "", at: new Date().toISOString(), by: me}; await fsSet("admin/" + ADMIN + "-decide", D);
       toast(a === "reject" ? "נדחה. הבקשה פתוחה שוב" : "נשלח לבוט. הסידור יתעדכן תוך כחצי דקה"); } catch(e) { toast("לא נשמר"); }
@@ -2080,7 +2080,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "4554b7d1ab0a";
+  const BUILD = "799e296cb5ef";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
