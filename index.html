@@ -132,6 +132,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 @keyframes mflash{0%{transform:scale(1.03)}100%{transform:scale(1)}}.meter.flash{animation:mflash .35s ease-out}
 .msave{margin-inline-start:auto;font-size:12px}
 .gaps{border-color:var(--bad)}
+.cal.on{background:var(--goodbg);color:var(--good);border-color:var(--good)}
 tr.offrow td{text-align:start;background:var(--bg);padding:4px 8px 8px;border-top:0}
 .offrow .ol{font-size:12px;color:var(--muted);margin-inline-end:6px}
 .oc{display:inline-block;font-size:12px;border-radius:999px;padding:2px 8px;margin:2px;background:var(--soft);color:var(--ink)}
@@ -427,8 +428,9 @@ function viewMine(){
   }
   // 4. constraints for the open week
   if (FBC && TOKEN && GDOC) {
-    const ws = planWeeks()[0], c = (GDOC.cons || {})[iso(ws)], lk = lockAt(ws), op = openAt(ws);
-    h += `<div class="card"><h3>אילוצים לשבוע ${dm(ws)}</h3>${!consOpen(ws) ? `<p class="hint">נפתחים ב${DAYN[op.getDay()]} ${dm(op)} ב־20:00, אחרי פרסום הסידור הנוכחי. ננעלים ב${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00.</p>` : c && c.at ? `<span class="pill ok">✓ הגשת. אפשר לשנות עד ${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00</span>`
+    const pw = planWeeks()[0], rw = addDays(pw, -7), ru = GDOC.reopen && GDOC.reopen[iso(rw)] ? new Date(GDOC.reopen[iso(rw)]) : null, rr = !consOpen(pw) && ru && ru > new Date();
+    const ws = rr ? rw : pw, c = (GDOC.cons || {})[iso(ws)], lk = rr ? ru : lockAt(ws), op = openAt(ws);
+    h += `<div class="card"><h3>אילוצים לשבוע ${dm(ws)}</h3>${!rr && !consOpen(ws) ? `<p class="hint">נפתחים ב${DAYN[op.getDay()]} ${dm(op)} ב־20:00, אחרי פרסום הסידור הנוכחי. ננעלים ב${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00.</p>` : c && c.at ? `<span class="pill ok">✓ הגשת. אפשר לשנות עד ${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00</span>`
       : `<p class="hint">עוד לא עדכנת. ננעל ב${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00. בלי עדכון משבצים לפי התבנית שלך.</p><button type="button" class="btn pri" id="gocons">לעדכון אילוצים</button>`}</div>`;
   } else if (FBC && canVerify()) h += `<p class="hint">כדי לשמור אילוצים ולקבל התראות: ⚙ הגדרות ← אמת אותי בוואטסאפ.</p>`;
   // 5. what is ahead (past shifts are gone)
@@ -964,6 +966,8 @@ function viewCons(){
   if (gState !== "ok") { view.innerHTML = `<div class="card"><h2>אילוצים</h2><div class="alert bad">${gState === "missing" ? "הקישור האישי לא מוכר. בקש מניצן קישור חדש." : "אין חיבור לשרת כרגע. נסה שוב בעוד רגע."}</div></div>`; if (gState === "error") { gState = "idle"; } return; }
   const W = planWeeks(), G = GDOC; G.cons = G.cons || {}; G.tpl = G.tpl || {cells: {}}; G.prof = G.prof || {maxN: 2, nightPref: 0, note: ""};
   if (consTab === "prof" || consTab === "w1") consTab = "tpl";
+  const lwk = addDays(W[0], -7), reoU = G.reopen && G.reopen[iso(lwk)] ? new Date(G.reopen[iso(lwk)]) : null, reo = !consOpen(W[0]) && reoU && reoU > new Date();
+  if (reo) W[0] = lwk;   // 23.11: reopened by the team lead, he edits the locked week
   const tabs = [["w0", consOpen(W[0]) ? "שבוע " + dm(W[0]) : "🔒 שבוע " + dm(addDays(W[0], -7))], ["tpl", "התבנית שלי"]];
   let h = `<div class="seg" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-ct="${k}" aria-selected="${consTab === k}">${l}</button>`).join("")}</div>`;
   if ((consTab === "w0" || consTab === "w1") && !consOpen(W[0])) {
@@ -976,8 +980,8 @@ function viewCons(){
     const ws = W[consTab === "w0" ? 0 : 1], key = iso(ws);
     if (!G.cons[key]) G.cons[key] = {cells: Object.assign({}, G.tpl.cells), reasons: "", note: ""};
     const C = G.cons[key], B = blockSplit(C.cells, G.tplOk, (G.consOk || {})[key]);
-    const lk = lockAt(ws);
-    h += `<div class="card"><h3>${dm(ws)} עד ${dm(addDays(ws, 6))} · ננעל ב${DAYN[lk.getDay()]} ${dm(lk)} ב־20:00</h3>
+    const lk = reo ? reoU : lockAt(ws);
+    h += `<div class="card"><h3>${dm(ws)} עד ${dm(addDays(ws, 6))} · ${reo ? "🔓 ראש הצוות פתח לך. " : ""}ננעל ב${DAYN[lk.getDay()]} ${dm(lk)} ב־${hhmm(lk)}</h3>
       <p class="hint">${nCells(G.tpl.cells) ? "מתחיל מהתבנית הקבועה שלך. שנה רק מה שחורג השבוע." : "סמן רק מה שחשוב לך. כל השאר נשאר ריק."}</p>
       <p class="hint" style="margin:0">ו׳ ערב עד ש׳ צהריים בסבב לפי ספר ההוגנות. שם רק חסימה או "מעדיף" משפיעים.</p>
       ${gridHTML(C.cells, ws, {fixed: G.tplOk || {}, pend: B.pend, meter: meterHTML(C.cells, B)})}
@@ -1477,11 +1481,15 @@ function viewAdmin(){
       const lbl = ks => ks.map(k => k.endsWith("-all") ? "כל " + DAYN[k.split("-")[0]] : DAYN[k.split("-")[0]] + " " + SH[k.split("-")[1]]).join(", ");
       const pend = g.tpl ? blockSplit(g.tpl.cells || {}, g.tplOk, false).pend : [];
       const wpend = W.map(w => { const c = g.cons && g.cons[iso(w)]; return c ? [w, blockSplit(c.cells, g.tplOk, (g.consOk || {})[iso(w)]).pend, c.reasons] : [w, [], ""]; }).filter(x => x[1].length);
+      const lockedWk = aWeek === 0 && adminWeeks().length > 1, ru = g.reopen && g.reopen[ws] ? new Date(g.reopen[ws]) : null, isOpen = ru && ru > new Date();
+      const reoBtn = lockedWk && g.token ? `<button class="cal${isOpen ? " on" : ""}" data-reopen="${esc(n)}">${isOpen ? "🔓 פתוח עד " + DAYN[ru.getDay()] + " " + hhmm(ru) + " · נעל" : "🔒 פתח לו אילוצים"}</button>` : "";
       return `<li><div class="s"><button type="button" class="linkbtn" data-see="${esc(n)}">${esc(n)}</button> <small style="color:var(--muted)">${kind}</small><span>${st.length ? st.join(" · ") : (g.token ? "עוד לא מילא" : "אין קישור")}</span>${g.prof && g.prof.note ? `<span>💬 ${esc(g.prof.note)}</span>` : ""}
         ${pend.length ? `<span class="warn">חסימה קבועה רביעית ומעלה: ${lbl(pend)} <button class="mebtn" data-appr="${esc(n)}">אשר</button></span>` : ""}
         ${wpend.map(([w, ks, why]) => `<span class="warn">שבוע ${dm(w)}, חסימה רביעית ומעלה: ${lbl(ks)}${why ? ` · "${esc(why)}"` : ""} <button class="mebtn" data-apw="${esc(n)}|${iso(w)}">אשר</button></span>`).join("")}</div>
         ${g.token ? `<a class="cal" target="_blank" rel="noopener" href="${waLink(`היי ${first(n)} 👋\nזה הקישור האישי שלך לאפליקציית הבונקר: אילוצים, התבנית השבועית שלך ואישור משמרות.\n${linkFor(g.token)}\nהקישור אישי, אל תעביר אותו.`)}">שלח</a><button class="cal" data-cpl="${esc(n)}">העתק</button>` : `<button class="cal" data-mk="${esc(n)}">צור קישור</button>`}
-        <button class="cal" data-kind="${esc(n)}">${kind === "קבוע" ? "← מתגבר" : "← קבוע"}</button></li>`; };
+        ${reoBtn}<button class="cal" data-kind="${esc(n)}">${kind === "קבוע" ? "← מתגבר" : "← קבוע"}</button></li>`; };
+    if (aWeek === 0 && adminWeeks().length > 1) h += `<div class="card"><h3>🔒 שבוע ${dm(W[0])} נעול לאילוצים</h3><p class="hint" style="margin:0">אפשר לפתוח מחדש לשומר אחד (בשורה שלו), או לכולם. נפתח עד פרסום הסידור, ${DAYN[openAt(addDays(W[0], 7)).getDay()]} ${dm(openAt(addDays(W[0], 7)))} ב־20:00. מתגבר חדש מופיע כאן אחרי שאימת את עצמו.</p>
+      <div class="actions"><button type="button" class="btn sec" data-reopenall="1">🔓 פתח לכל הצוות</button><button type="button" class="btn sec" data-reopenall="0">🔒 נעל לכולם</button></div></div>`;
     h += `<div class="card"><h3>אישור שומר בלי הבוט</h3><p class="hint" style="margin:0">כשהבוט לא מחובר, השומר מקבל במסך קוד בן 8 תווים. אשר רק אם אתה בטוח שזה הוא.</p>
       <form id="pairf" style="display:flex;gap:8px"><input id="pairc" type="text" autocomplete="off" autocapitalize="none" maxlength="8" placeholder="קוד מהשומר" style="direction:ltr;text-align:center;letter-spacing:3px"><button class="btn pri" style="min-width:90px;flex:none">אשר</button></form><p class="hint" id="pairst" style="margin:0"></p></div>`;
     const pm = Object.entries(ADOC.pendingManual || {});
@@ -1564,6 +1572,18 @@ function viewAdmin(){
   view.querySelectorAll("[data-pmok]").forEach(b => b.onclick = async () => { const t = b.dataset.pmok, n = ADOC.pendingManual[t];
     try { const g = await fsGet("guards/" + t) || {name: n}; g.state = "verified"; g.verified = new Date().toISOString(); await fsSet("guards/" + t, g);
       ADOC.guards = ADOC.guards || {}; ADOC.guards[t] = n; delete ADOC.pendingManual[t]; await saveAdmin(); aState = "idle"; loadAdmin(); } catch(e) { toast("לא נשמר"); } });
+  const reopenW = () => iso(AWS || W[0]);
+  const untilW = () => { const u = openAt(addDays(AWS || W[0], 7)); return u > new Date() ? u : new Date(Date.now() + 24 * 3600e3); };
+  async function setReopen(n, on){ const g0 = GDOCS[n]; if (!g0 || !g0.token) return false;
+    const g = await fsGet("guards/" + g0.token); if (!g) return false; g.reopen = g.reopen || {};
+    if (on) g.reopen[reopenW()] = untilW().toISOString(); else delete g.reopen[reopenW()];
+    await fsSet("guards/" + g0.token, g); Object.assign(g0, {reopen: g.reopen}); return true; }
+  view.querySelectorAll("[data-reopen]").forEach(b => b.onclick = async () => { const n = b.dataset.reopen, g0 = GDOCS[n] || {};
+    const on = !(g0.reopen && g0.reopen[reopenW()] && new Date(g0.reopen[reopenW()]) > new Date());
+    b.textContent = "…"; try { await setReopen(n, on); toast(on ? `${n}: האילוצים פתוחים` : `${n}: נעול`); } catch(e) { toast("לא נשמר"); } viewAdmin(); });
+  view.querySelectorAll("[data-reopenall]").forEach(b => b.onclick = async () => { const on = b.dataset.reopenall === "1"; b.textContent = "…"; let k = 0;
+    for (const n of [...teamCore(ADOC), ...teamFloaters(ADOC)]) { try { if (await setReopen(n, on)) k++; } catch(e) {} }
+    toast(on ? `נפתח ל־${k} שומרים` : `ננעל ל־${k} שומרים`); viewAdmin(); });
   const pf = document.getElementById("pairf");
   if (pf) pf.onsubmit = async ev => { ev.preventDefault(); const c = document.getElementById("pairc").value.trim().toLowerCase(), st = document.getElementById("pairst");
     if (!/^[a-z2-9]{8}$/.test(c)) { st.textContent = "קוד של 8 תווים"; return; }
@@ -1822,7 +1842,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "7552e1f3e474";
+  const BUILD = "8813326bf83d";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
