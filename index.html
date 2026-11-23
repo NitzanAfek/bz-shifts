@@ -1410,7 +1410,7 @@ function viewSettings(){
     ${FBC && !TOKEN && canVerify() && me ? `<button type="button" class="btn pri" id="st_verify">אמת אותי בוואטסאפ</button>` : ""}
 </div>`;
   h += pushCard();
-  h += `<div class="card"><h3>מראה (תצוגה מקדימה)</h3><div class="seg"><button type="button" data-ui="classic" aria-selected="${!document.documentElement.classList.contains("ui-quiet")}">קלאסי</button><button type="button" data-ui="quiet" aria-selected="${document.documentElement.classList.contains("ui-quiet")}">שקט</button></div></div>`;
+  { const u = store.get("ui", ""); h += `<div class="card"><h3>גרסת האפליקציה</h3><div class="seg">${[["classic", "קלאסית"], ["quiet", "שקטה"], ["pilot", "חדשה (פיילוט)"]].map(([k, l]) => `<button type="button" data-ui="${k}" aria-selected="${(u || "classic") === k}">${l}</button>`).join("")}</div><p class="hint" style="margin:0">החדשה: מסך "השבוע שלי", "לא אוכל להגיע" עם מחליפים, ותיבת "דורש החלטה" לראש הצוות.</p></div>`; }
 
   if (ok) { const P = GDOC.prof = GDOC.prof || {};
     h += `<div class="card"><h3>יומן</h3>
@@ -1426,7 +1426,7 @@ function viewSettings(){
   const q = id => document.getElementById(id);
   q("st_name").onclick = pickMe;
   if (q("st_verify")) q("st_verify").onclick = () => verifySheet(canonN(me));
-  view.querySelectorAll("[data-ui]").forEach(b => b.onclick = () => { store.set("ui", b.dataset.ui); document.documentElement.classList.toggle("ui-quiet", b.dataset.ui === "quiet"); viewSettings(); });
+  view.querySelectorAll("[data-ui]").forEach(b => b.onclick = () => { store.set("ui", b.dataset.ui); store.set("tab", b.dataset.ui === "pilot" ? "home" : "now"); location.reload(); });
   if (q("st_pastef")) q("st_pastef").onsubmit = ev => { ev.preventDefault();   // 23.11: a home-screen app that lost its key gets it back from the personal link
     const v = q("st_paste").value.trim(), h = new URLSearchParams((v.split("#")[1] || ""));
     const k = h.get("k"), a = h.get("a");
@@ -2083,7 +2083,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "0f8aa4558367";
+  const BUILD = "34c4ca0d77aa";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
