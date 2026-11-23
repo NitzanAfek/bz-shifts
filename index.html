@@ -804,6 +804,13 @@ function planWeeks(){   // one open week (Nitzan, 21.11): the next week whose Su
   while (new Date() >= lockAt(w)) w = addDays(w, 7);
   return [w];
 }
+// The lead's weeks (23.11): after Sunday 20:00 the guards fill the NEXT week, but the lead is still building the week
+// that just locked. The scheduler shows that week first, and the open week second.
+function adminWeeks(){
+  const open = planWeeks()[0], locked = addDays(open, -7);
+  return new Date() < locked ? [locked, open] : [open];
+}
+let AWS = null;   // the week the lead is looking at, shared by every scheduler tab
 const STATES = ["", "↑", "↓", "⛔"];               // 0 neutral, 1 prefer, 2 prefer not, 3 blocked
 const STATE_TXT = ["ניטרלי", "מעדיף", "מעדיף שלא", "חסום"];
 
@@ -1449,8 +1456,10 @@ function viewAdmin(){
   const tabs = [["team", "צוות"], ...(ADOC.owner ? [["pool", "שומרים"]] : []), ["plan", "שיבוץ"], ["sos", "חירום"], ["fair", "הוגנות"]];
   if (aTab === "pool" && !ADOC.owner) aTab = "team";
   let h = `<div class="card"><h2>צוות ${esc(TEAM_LABEL)}</h2><p class="hint">ראש צוות: ${esc(LEAD_OF[TEAM_LABEL] || TEAM_LABEL)}. רואים רק את הצוות הזה.</p></div>
-    <div class="seg" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-at="${k}" aria-selected="${aTab === k}">${l}</button>`).join("")}</div>`;
-  const core = teamCore(ADOC), flo = teamFloaters(ADOC), W = planWeeks();
+    <div class="seg" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-at="${k}" aria-selected="${aTab === k}">${l}</button>`).join("")}</div>
+    ${adminWeeks().length > 1 ? `<div class="seg wks">${adminWeeks().map((w, i) => `<button type="button" data-aw="${i}" aria-selected="${aWeek === i}">שבוע ${dm(w)}${i === 0 ? " · נעול, לשיבוץ" : " · פתוח לאילוצים"}</button>`).join("")}</div>` : ""}`;
+  const AW = adminWeeks(); if (aWeek >= AW.length) aWeek = 0;
+  const core = teamCore(ADOC), flo = teamFloaters(ADOC), W = [AW[aWeek]]; AWS = W[0];
   if (aTab === "team") {
     const row = (n, kind) => { const g = GDOCS[n] || {}, ws = iso(W[0]);
       const st = [(g.push || []).length ? "🔔" : "", g.verified ? "✓ אומת" : "", g.tpl && Object.keys(g.tpl.cells || {}).length ? "✓ תבנית" : "", g.cons && g.cons[ws] && g.cons[ws].at ? "✓ אילוצים " + dm(W[0]) : ""].filter(Boolean);
@@ -1509,7 +1518,7 @@ function viewAdmin(){
         ${o.n ? `<div class="fdays">${DAYN.map((dn, d) => `<button type="button" data-fd="${esc(n)}|${d}" aria-pressed="${o.days.includes(d)}">${dn}</button>`).join("")}</div>
         <p class="hint" style="margin:0">${o.days.length ? "רק ב" + o.days.map(d => DAYN[d]).join(", ") : "כל יום (סמן ימים כדי להגביל)"}</p>` : ""}</div>`; };
     const fTot = Object.values(WK).reduce((a, o) => a + (o.n || 0), 0);
-    h += `<div class="card"><h3>טיוטה לשבוע</h3><div class="seg">${W.map((w, i) => `<button type="button" data-aw="${i}" aria-selected="${aWeek === i}">${dm(w)}</button>`).join("")}</div>
+    h += `<div class="card"><h3>טיוטה לשבוע ${dm(W[0])}</h3>
       <label class="f">עמדת הצוות (לפי הסבב: ${esc(teamPostFor(ws))})<select id="apost">${(DIR.rotation || []).map(p => `<option${p === post ? " selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
       <p class="hint">${core.length} קבועים × עד 5 = ${28 - needed}. חסרות <b>${Math.max(0, needed)}</b> משמרות ממתגברים.</p>
       <h3 style="margin-top:6px">מתגברים שקיבלתי לשבוע ${dm(ws)} · ${fTot} משמרות</h3>
@@ -1611,7 +1620,7 @@ function readGrid(cells, ws){
   return h + `</div>`;
 }
 function guardSheet(n){
-  const g = GDOCS[n] || {}, ws = planWeeks()[0], c = (g.cons || {})[iso(ws)], P = g.prof || {}, tpl = (g.tpl || {}).cells || {};
+  const g = GDOCS[n] || {}, ws = AWS || planWeeks()[0], c = (g.cons || {})[iso(ws)], P = g.prof || {}, tpl = (g.tpl || {}).cells || {};
   const sh = document.createElement("div"); sh.className = "sheet";
   sh.innerHTML = `<div class="card"><h2>${esc(n)}</h2>
     ${!g.token ? `<p class="hint">עוד לא מחובר לאפליקציה.</p>` : ""}
@@ -1802,7 +1811,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "a51d9cb27e2f";
+  const BUILD = "1c4e34ab8aaa";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
