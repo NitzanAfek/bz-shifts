@@ -136,6 +136,10 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 @keyframes mflash{0%{transform:scale(1.03)}100%{transform:scale(1)}}.meter.flash{animation:mflash .35s ease-out}
 .msave{margin-inline-start:auto;font-size:12px}
 .gaps{border-color:var(--bad)}
+table.twk td.lv{background:var(--goodbg)}table.twk td.sw{background:var(--swapbg)}table.twk td.bad{background:var(--badbg);color:var(--bad)}
+table.twk td.fair{background:var(--soft);outline:2px dashed var(--acc);outline-offset:-3px}table.twk td small{display:block;font-size:10px;color:var(--acc)}
+table.twk tr.off td{font-size:11px;color:var(--muted)}table.twk .okd{color:var(--good);font-weight:700}table.twk .nod{color:var(--bad);font-weight:700}
+.lgd{display:inline-block;width:10px;height:10px;border-radius:3px;margin-inline-end:3px;vertical-align:middle}.lgd.lv{background:var(--goodbg);border:1px solid var(--good)}.lgd.sw{background:var(--swapbg);border:1px solid var(--swap)}.lgd.bad{background:var(--badbg);border:1px solid var(--bad)}
 .plhd{display:flex;align-items:center;justify-content:space-between;gap:8px}.plhd h3{margin:0}.plhd select{width:auto;padding:6px 10px}
 .fpick{display:flex;flex-wrap:wrap;gap:6px}
 .fpick button,.fdays button,.teamsel button{font:inherit;font-size:14px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
@@ -393,13 +397,21 @@ function teamPosts(P){
   }
   return out;
 }
+// 23.11: a grid shows first names only; a full name stays only where two active people share the first name (נועם)
+function shortName(n){
+  if (!n || n === "—") return n; const c = canonN(n), f = c.split(" ")[0];
+  const clash = DIR.people.some(x => !x.left && x.n !== c && x.n.split(" ")[0] === f);
+  return clash ? c : f;
+}
+// the roster's notes, only what a guard needs (typos and "written without a name" are for the scheduler, not for him)
+const cleanNote = t => (t || "").split(" · ").filter(x => x && !/טעות|הקלד|הוזן|בטבלה|רשום |לפי שמות הימים/.test(x)).join(" · ");
 function teamWeekHTML(p, B, today){
   let h = `<div class="card flush"><div class="tw"><table class="twk"><thead><tr><th><i class="dot" style="background:var(${p.color})"></i>${esc(p.name)}</th>${DAYN.map((d, i) => { const dt = addDays(B, i), isT = today >= dt && today < addDays(dt, 1);
     return `<th class="${isT ? "tday" : ""}">${"אבגדהוש"[i]}׳<small>${dm(dt)}</small></th>`; }).join("")}</tr></thead><tbody>`;
   for (let r = 0; r < 5; r++) {
     h += `<tr class="${r === 4 ? "off" : ""}"><th>${r < 4 ? SH[r] : "חופש"}${r < 4 ? `<small>${["07-13","13-19","19-01","01-07"][r]}</small>` : ""}</th>`;
     for (let d = 0; d < 7; d++) { const c = p.rows[r][2][d], t = nameOf(c), cls = typeof c === "string" ? "" : (c.c === "swap" ? "sw" : c.c === "live" ? "lv" : "nt");
-      h += `<td class="${cls}"${typeof c === "string" ? "" : ` data-why="${esc(c.m)}"`}>${t.split(", ").filter(Boolean).map(n => `<span class="n${me && same(n, me) ? " me" : ""}">${esc(n)}</span>`).join("<br>") || "·"}</td>`; }
+      h += `<td class="${cls}"${typeof c === "string" ? "" : ` data-why="${esc(c.m)}"`}>${t.split(", ").filter(Boolean).map(n => `<span class="n${me && same(n, me) ? " me" : ""}">${esc(shortName(n))}</span>`).join("<br>") || "·"}</td>`; }
     h += `</tr>`;
   }
   return h + `</tbody></table></div></div>`;
@@ -415,7 +427,7 @@ function viewWeek(){
   }
   const isNext = wk === "next" && N, P = isNext ? N.posts : posts, B = isNext ? new Date(N.week_start + "T00:00:00") : W0;
   if (isNext && N.posts.some(p => p.missing)) h += `<p class="hint">חלק מהעמדות עוד לא פורסמו: ${N.posts.filter(p=>p.missing).map(p=>esc(p.name)).join(", ")}.</p>`;
-  const wnote = isNext ? N.note : DATA.note;
+  const wnote = cleanNote(isNext ? N.note : DATA.note);
   if (wnote) h += `<details class="wnote"><summary>הערות לסידור השבוע</summary><p>${esc(wnote).replace(/ · /g, "<br>")}</p></details>`;
   const TP = teamPosts(P), myTeam = me && dirOf(me) && dirOf(me).team;
   if (rteam === null) rteam = myTeam && TP[myTeam] ? myTeam : "";
@@ -444,7 +456,7 @@ function viewWeek(){
       if (p.missing) { h += `<td style="color:var(--faint)">—</td>`; continue; }
       const c = p.rows[r][2][day]; const t = nameOf(c);
       const cls = typeof c === "string" ? "" : (c.c === "swap" ? "sw" : c.c === "live" ? "lv" : "nt");
-      h += `<td class="${cls}"${typeof c === "string" ? "" : ` data-why="${esc(c.m)}"`}>${t.split(", ").map(n=>`<span class="n${me && same(n,me)?" me":""}">${esc(n)}</span>`).join(", ")}</td>`;
+      h += `<td class="${cls}"${typeof c === "string" ? "" : ` data-why="${esc(c.m)}"`}>${t.split(", ").map(n=>`<span class="n${me && same(n,me)?" me":""}">${esc(shortName(n))}</span>`).join(", ")}</td>`;
     }
     h += `</tr>`;
   }
@@ -1785,20 +1797,25 @@ function drawDraft(){
   let t = gapsHTML(d, ws) + `<div class="card"><div class="stats s4"><div><b>${d.kpi.hard ? "⚠ " + d.kpi.hard : "100%"}</b><span>אילוצים קשיחים</span></div><div><b>${d.kpi.softPct}%</b><span>"מעדיף שלא" כובדו</span></div><div><b>${d.kpi.nights}</b><span>לילות לקבוע</span></div><div><b>${d.kpi.floaterShifts}</b><span>משמרות מתגבר</span></div></div>
     ${d.kpi.three.length ? `<p class="hint">3 ימי חופש: <b>${d.kpi.three.map(esc).join(", ")}</b> (לפי התור).</p>` : ""}
     ${d.flags.length ? `<div class="alert bad"><b>חוקים שנשברו</b><ul>${d.flags.slice(0, 8).map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>` : `<span class="pill ok">✓ כל החוקים נשמרו: עד 5 משמרות, 2 ימי חופש, אין מנוחה של 6 שעות</span>`}</div>`;
-  t += `<div class="card flush"><div class="tw"><table><thead><tr><th style="width:64px">${esc(d.post)}</th>${SH.map(s => `<th>${s}</th>`).join("")}</tr></thead><tbody>`;
   const team = d.people.map((p, i) => i).filter(i => d.people[i].kind === "core");
-  for (let dd = 0; dd < 7; dd++) {
-    t += `<tr><th>${DAYN[dd]}<small>${dm(addDays(ws, dd))}</small></th>${[0, 1, 2, 3].map(s => { const pi = d.out[dd*4 + s]; return `<td class="${cellCls(pi, dd, s)}">${pi < 0 ? "<b>חסר</b>" : esc(d.names[pi]) + (FS.has(dd + "-" + s) ? "<small>⚖ הוגנות</small>" : "")}</td>`; }).join("")}</tr>`;
-    const on = new Set([0, 1, 2, 3].map(s => d.out[dd*4 + s])), chips = [];
-    team.forEach(i => { const p = d.people[i], r = dayReq(p, dd);
-      if (!on.has(i)) chips.push(`<span class="oc${r ? " ok" : ""}">${esc(p.n)}${r ? (r === 3 ? " · חייב ✓" : " · ביקש ✓") : ""}</span>`);
-      else if (r) chips.push(`<span class="oc bad">⚠ ${esc(p.n)} ביקש חופש, משובץ</span>`); });
-    t += `<tr class="offrow"><td colspan="5"><span class="ol">🌴 חופש</span>${chips.join("") || '<span class="oc">אף אחד</span>'}</td></tr>`;
+  t += `<div class="card flush"><div class="tw"><table class="twk"><thead><tr><th>${esc(d.post)}</th>${DAYN.map((x, dd) => `<th>${"אבגדהוש"[dd]}׳<small>${dm(addDays(ws, dd))}</small></th>`).join("")}</tr></thead><tbody>`;
+  for (let s_ = 0; s_ < 4; s_++) {
+    t += `<tr><th>${SH[s_]}<small>${["07-13","13-19","19-01","01-07"][s_]}</small></th>`;
+    for (let dd = 0; dd < 7; dd++) { const pi = d.out[dd*4 + s_], cl = cellCls(pi, dd, s_);
+      t += `<td class="${cl}">${pi < 0 ? "<b>חסר</b>" : esc(shortName(d.names[pi])) + (cl === "fair" ? "<small>⚖</small>" : "")}</td>`; }
+    t += `</tr>`;
   }
-  t += `</tbody></table></div></div><p class="hint">🌴 = מי בחופש באותו יום, ✓ = ביקש וקיבל, ⚠ = ביקש ולא קיבל · ירוק = קיבל משמרת שביקש · ⚖ = שבת לפי ספר ההוגנות (אין מתנדב) · כתום = "מעדיף שלא" שנשבר · אדום = חסר שומר (אף אחד לא משובץ ליותר מ־5)</p>` + fairHTML(d);
-  t += `<div class="card flush"><div class="tw"><table><thead><tr><th style="text-align:start;width:96px">שומר</th><th>משמרות</th><th>לילות</th><th>שישי</th><th>שבת</th><th>חופש</th></tr></thead><tbody>
-    ${d.people.map(p => `<tr><th>${esc(p.n)}${p.kind === "floater" ? "<small>מתגבר</small>" : ""}</th><td>${p.cnt}</td><td>${p.nt}<small>${p.led.nt} ב־${LED.weeks.length} שב׳</small></td><td>${p.fri}</td><td>${p.sat}<small>${p.led.sat} ב־${LED.weeks.length} שב׳</small></td><td>${(o => `${o.off.length}<small>${o.off.map(d1).join(" ")}${o.asked.length ? `<br>ביקש: ${o.asked.map(dd => d1(dd) + (o.got.includes(dd) ? "✓" : "✗")).join(" ")}` : ""}</small>`)(offOf(d, d.people.indexOf(p)))}</td></tr>`).join("")}</tbody></table></div></div>`;
-  t += `<div class="card"><h3>למה כל אחד קיבל את מה שקיבל</h3>${d.people.filter(p => p.cnt).map(p => `<p class="hint"><b>${esc(p.n)}:</b> ${p.pref ? `קיבל ${p.got.length} מתוך ${p.pref} "מעדיף". ` : ""}${p.broke.length ? `"מעדיף שלא" שנשבר: ${p.broke.join(", ")} (אין חלופה בלי לשבור חוק). ` : ""}לילות ב־${LED.weeks.length} שבועות: ${p.led.nt}. ${p.shabNow.length ? `שבת: ${p.shabNow.map(slotTxt).join(", ")}${p.shab && p.shab.ago != null ? ` (קודם: לפני ${p.shab.ago} שבועות)` : ""}.` : p.shab && p.shab.ago === 1 ? "לא בשבת, כי היה בשבוע שעבר." : ""}${p.kind === "core" ? (p.off >= 3 ? " 3 ימי חופש השבוע." : "") : " מתגבר."}${((GDOCS[p.n] || {}).prof || {}).note ? ` 💬 "${esc(GDOCS[p.n].prof.note)}"` : ""}</p>`).join("")}</div>`;
+  t += `<tr class="off"><th>חופש</th>`;
+  for (let dd = 0; dd < 7; dd++) { const on = new Set([0, 1, 2, 3].map(s_ => d.out[dd*4 + s_])), xs = [];
+    team.forEach(i => { const p = d.people[i], r = dayReq(p, dd);
+      if (!on.has(i)) xs.push(`<span class="${r ? "okd" : ""}">${esc(shortName(p.n))}${r ? "✓" : ""}</span>`);
+      else if (r) xs.push(`<span class="nod">⚠${esc(shortName(p.n))}</span>`); });
+    t += `<td>${xs.join("<br>") || "·"}</td>`; }
+  t += `</tr></tbody></table></div></div>
+    <p class="hint"><span class="lgd lv"></span>קיבל משמרת שביקש · <span class="lgd sw"></span>"מעדיף שלא" שנשבר · <span class="lgd bad"></span>חסר שומר · ⚖ שבת לפי ספר ההוגנות · בחופש: ✓ ביקש וקיבל, ⚠ ביקש ולא קיבל</p>` + fairHTML(d);
+  t += `<div class="card"><details><summary style="cursor:pointer;font-weight:700">פירוט לכל שומר</summary><div class="tw"><table><thead><tr><th style="text-align:start;width:96px">שומר</th><th>משמרות</th><th>לילות</th><th>שישי</th><th>שבת</th><th>חופש</th></tr></thead><tbody>
+    ${d.people.map(p => `<tr><th>${esc(p.n)}${p.kind === "floater" ? "<small>מתגבר</small>" : ""}</th><td>${p.cnt}</td><td>${p.nt}<small>${p.led.nt} ב־${LED.weeks.length} שב׳</small></td><td>${p.fri}</td><td>${p.sat}<small>${p.led.sat} ב־${LED.weeks.length} שב׳</small></td><td>${(o => `${o.off.length}<small>${o.off.map(d1).join(" ")}${o.asked.length ? `<br>ביקש: ${o.asked.map(dd => d1(dd) + (o.got.includes(dd) ? "✓" : "✗")).join(" ")}` : ""}</small>`)(offOf(d, d.people.indexOf(p)))}</td></tr>`).join("")}</tbody></table></div>`;
+  t += `<h3 style="margin-top:8px">למה כל אחד קיבל את מה שקיבל</h3>${d.people.filter(p => p.cnt).map(p => `<p class="hint"><b>${esc(p.n)}:</b> ${p.pref ? `קיבל ${p.got.length} מתוך ${p.pref} "מעדיף". ` : ""}${p.broke.length ? `"מעדיף שלא" שנשבר: ${p.broke.join(", ")} (אין חלופה בלי לשבור חוק). ` : ""}לילות ב־${LED.weeks.length} שבועות: ${p.led.nt}. ${p.shabNow.length ? `שבת: ${p.shabNow.map(slotTxt).join(", ")}${p.shab && p.shab.ago != null ? ` (קודם: לפני ${p.shab.ago} שבועות)` : ""}.` : p.shab && p.shab.ago === 1 ? "לא בשבת, כי היה בשבוע שעבר." : ""}${p.kind === "core" ? (p.off >= 3 ? " 3 ימי חופש השבוע." : "") : " מתגבר."}${((GDOCS[p.n] || {}).prof || {}).note ? ` 💬 "${esc(GDOCS[p.n].prof.note)}"` : ""}</p>`).join("")}</details></div>`;
   const txt = draftText(d);
   t += `<div class="card"><h3>טיוטה, לא פורסם</h3><div class="actions"><a class="btn wa" target="_blank" rel="noopener" href="${waLink(txt)}">שלח בוואטסאפ</a><button type="button" class="btn sec" id="acp">העתק</button><button type="button" class="btn sec" id="asave">שמור טיוטה</button></div>
     <p class="hint">שלב 0: הטיוטה לא מחליפה את הסידור של אלירן. משווים מולו שבועיים.</p></div>`;
@@ -1917,7 +1934,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "1856b15e075e";
+  const BUILD = "296d7d7febc6";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
