@@ -136,6 +136,15 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 @keyframes mflash{0%{transform:scale(1.03)}100%{transform:scale(1)}}.meter.flash{animation:mflash .35s ease-out}
 .msave{margin-inline-start:auto;font-size:12px}
 .gaps{border-color:var(--bad)}
+.ftm{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.ftm div{border-radius:10px;padding:6px 4px;text-align:center;background:var(--badbg);color:var(--bad)}
+.ftm div.ok{background:var(--goodbg);color:var(--good)}.ftm b{display:block;font-size:14px}.ftm span{font-size:12px}
+.fcards{display:grid;gap:8px;min-width:0}.fcard{border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;gap:8px}
+.fch{display:flex;align-items:center;gap:8px}.fch b{font-size:16px}.ftot{font-size:12px;border-radius:999px;padding:2px 8px;background:var(--soft);color:var(--muted)}.ftot.full{background:var(--goodbg);color:var(--good);font-weight:700}
+.frm{margin-inline-start:auto;font:inherit;font-size:12px;color:var(--muted);background:none;border:0;text-decoration:underline;cursor:pointer}
+.fst{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}.fsc{border:1px solid var(--line);border-radius:10px;padding:3px 2px;text-align:center;min-width:0}.fsc.on{border-color:var(--good);background:var(--goodbg)}
+.fsc span{display:block;font-size:12px;color:var(--muted)}.fsc div{display:flex;align-items:center;justify-content:space-between}
+.fsc button{width:24px;height:24px;flex:none;border-radius:50%;border:1px solid var(--line);background:var(--card);font:inherit;font-size:16px;line-height:1;cursor:pointer;padding:0}.fsc button:disabled{opacity:.35}
+.fsc b{font-size:15px}
 .list li.grow{display:grid;gap:8px;align-items:start}
 .ghd{display:flex;align-items:baseline;gap:8px;font-size:17px}.gk{font-size:12px;color:var(--muted);background:var(--soft);border-radius:999px;padding:2px 8px}
 .gchs{display:flex;flex-wrap:wrap;gap:6px}.gch{font-size:12px;border-radius:999px;padding:3px 9px;background:var(--soft);color:var(--muted)}.gch.ok{background:var(--goodbg);color:var(--good);font-weight:700}
@@ -1554,12 +1563,14 @@ function viewAdmin(){
     const capOf = n => ADOC.owner ? ((AL[n] || {})[TEAM_LABEL] || 0) : ((ADOC.caps || {})[n] || 0);
     const need = 28 - core.length * 5, given = flo.reduce((a, n) => a + capOf(n), 0);
     h += `<div class="card flush"><ul class="list">${core.map(n => row(n, "קבוע")).join("")}${flo.map(n => row(n, "מתגבר")).join("")}</ul></div>
-      ${!ADOC.owner ? `<div class="card"><h3>המתגברים של הצוות</h3><p class="hint">הצוות צריך <b>${need}</b> משמרות ממתגברים בשבוע. מוקצה: <b>${given}</b>${flo.length ? " (" + flo.map(n => esc(n) + " " + capOf(n)).join(", ") + ")" : ""}. את החלוקה בין הצוותים קובע ניצן.</p></div>` : `<div class="card"><h3>מתגברים: כמה משמרות בשבוע לכל צוות</h3>
-      <p class="hint">הצוות שלך צריך <b>${need}</b> משמרות ממתגברים בשבוע (28 פחות ${core.length} קבועים × 5). מוקצה עכשיו: <b>${given}</b>.${given < need ? " חסרות " + (need - given) + "." : ""}</p>
-      <div class="tw"><table><thead><tr><th style="text-align:start;width:96px">מתגבר</th>${TL.map(t => `<th>${esc(t)}</th>`).join("")}<th>סה״כ</th><th></th></tr></thead><tbody>
-      ${flo.map(n => { const tot = TL.reduce((a, t) => a + ((AL[n] || {})[t] || 0), 0);
-        return `<tr><th>${esc(n)}</th>${TL.map(t => `<td><input type="number" min="0" max="5" data-al="${esc(n)}|${esc(t)}" value="${(AL[n] || {})[t] || 0}" style="width:52px;padding:6px;text-align:center"></td>`).join("")}<td${tot > 5 ? ' style="color:var(--bad);font-weight:700"' : ""}>${tot}</td><td><button class="cal" data-rmf="${esc(n)}">הסר</button></td></tr>`; }).join("")}
-      </tbody></table></div><p class="hint">מתגבר עושה עד 5 משמרות בשבוע בכל הבונקר. כל ראש צוות רואה את העמודה של הצוות שלו.</p></div>`}`;
+      ${!ADOC.owner ? `<div class="card"><h3>המתגברים של הצוות</h3><p class="hint">הצוות צריך <b>${need}</b> משמרות ממתגברים בשבוע. מוקצה: <b>${given}</b>${flo.length ? " (" + flo.map(n => esc(n) + " " + capOf(n)).join(", ") + ")" : ""}. את החלוקה בין הצוותים קובע ניצן.</p></div>` : `<div class="card"><h3>מתגברים לכל צוות</h3>
+      <p class="hint" style="margin:0">כמה משמרות כל מתגבר נותן לכל צוות בשבוע רגיל. עד 5 משמרות למתגבר בכל הבונקר.</p>
+      <div class="ftm">${TL.map(t => { const nc = DIR.people.filter(p => p.team === t && !p.left && (p.type === "core" || p.type === "lead")).length, nd = Math.max(0, 28 - nc * 5), gv = flo.reduce((a, n) => a + ((AL[n] || {})[t] || 0), 0);
+        return `<div class="${gv >= nd ? "ok" : "short"}"><b>${esc(t)}</b><span>${gv} מתוך ${nd}</span></div>`; }).join("")}</div>
+      <div class="fcards">${flo.map(n => { const tot = TL.reduce((a, t) => a + ((AL[n] || {})[t] || 0), 0);
+        return `<div class="fcard"><div class="fch"><b>${esc(n)}</b><span class="ftot${tot >= 5 ? " full" : ""}">${tot}/5</span><button class="frm" data-rmf="${esc(n)}" aria-label="הסר את ${esc(n)}">הסר</button></div>
+          <div class="fst">${TL.map(t => { const v = (AL[n] || {})[t] || 0; return `<div class="fsc${v ? " on" : ""}"><span>${esc(t)}</span><div><button type="button" data-alstep="${esc(n)}|${esc(t)}|-1" aria-label="פחות">−</button><b>${v}</b><button type="button" data-alstep="${esc(n)}|${esc(t)}|1" aria-label="יותר"${tot >= 5 ? " disabled" : ""}>+</button></div></div>`; }).join("")}</div></div>`; }).join("")}</div>
+      <p class="hint" style="margin:0">ירוק = הצוות מכוסה. לשבוע מסוים (למשל "רק בשלישי") מגדירים בטאב שיבוץ.</p></div>`}`;
     const fresh3 = (DATA.flags || []).filter(f => { const ts = (DATA.alertTs || {})[f]; return ts && Date.now() / 1000 - ts < 3 * 86400; });
     if (fresh3.length) h += `<div class="card"><details><summary class="hint" style="cursor:pointer">טפסי החלפה שלא נקלטו (${fresh3.length}) · 3 ימים אחרונים</summary><ul class="hint">${fresh3.map(f => `<li>${esc(f)}</li>`).join("")}</ul></details></div>`;
     h += `<div class="card"><label class="f">הוסף שומר לרשימה<select id="addg"><option value="">בחר…</option>${DIR.people.filter(p => !p.left && !core.includes(p.n) && !flo.includes(p.n)).map(p => `<option>${esc(p.n)}</option>`).join("")}</select></label>
@@ -1671,9 +1682,9 @@ function viewAdmin(){
     if (ROSTER && ROSTER.people[sl.dataset.pn]) ROSTER.people[sl.dataset.pn].name = sl.value;
     await saveAdmin(); toast("נשמר. הבוט יעדכן את הרשימה בריצה הבאה"); });
   let alT = null;
-  view.querySelectorAll("[data-al]").forEach(i => i.onchange = () => { const [n, t] = i.dataset.al.split("|"); ADOC.alloc[n] = ADOC.alloc[n] || {};
+  view.querySelectorAll("[data-alstep]").forEach(b => b.onclick = () => { const [n, t, dl] = b.dataset.alstep.split("|"); ADOC.alloc[n] = ADOC.alloc[n] || {};
     const others = Object.entries(ADOC.alloc[n]).filter(([tt]) => tt !== t).reduce((a, [, v]) => a + (+v || 0), 0);
-    const want = Math.max(0, Math.min(5, +i.value || 0)); ADOC.alloc[n][t] = Math.min(want, Math.max(0, 5 - others));
+    const want = Math.max(0, Math.min(5, (ADOC.alloc[n][t] || 0) + +dl)); ADOC.alloc[n][t] = Math.min(want, Math.max(0, 5 - others));
     if (ADOC.alloc[n][t] < want) toast(`${n} כבר מוקצה ל־${others} משמרות בצוותים אחרים. מקסימום 5 בכל הבונקר`); if (t === TEAM_LABEL) aCaps[n] = ADOC.alloc[n][t]; clearTimeout(alT); alT = setTimeout(saveAdmin, 600); viewAdmin(); });
   view.querySelectorAll("[data-rmf]").forEach(b => b.onclick = () => { const n = b.dataset.rmf; ADOC.team = {core: teamCore(ADOC).filter(x => x !== n), floaters: teamFloaters(ADOC).filter(x => x !== n)}; saveAdmin(); viewAdmin(); });
   const ag = document.getElementById("addg"); if (ag) ag.onchange = () => { if (!ag.value) return; ADOC.team = {core: teamCore(ADOC).slice(), floaters: [...teamFloaters(ADOC), ag.value]}; saveAdmin(); viewAdmin(); };
@@ -1898,7 +1909,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "f79b7dfdc51b";
+  const BUILD = "c5c756d46ebd";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
