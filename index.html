@@ -1972,6 +1972,9 @@ function cantSheetP(x){
     GDOC.out[id] = {id, post: x.post, day: x.day, s: x.s, base: iso(x.base), start: x.start.toISOString(), end: x.end.toISOString(), cands: ok.map(c => c.n), at: new Date().toISOString(), status: "open"};
     saveGuard(); sh.remove(); toast("נשלח. תקבל עדכון כשמישהו לוקח"); render(); };
 }
+let ginAt = 0;
+async function refreshGin(){ if (!PILOT || !TOKEN || !GDOC) return; try { GIN = (await fsGet("guards/" + TOKEN + "-in")) || {}; ginAt = Date.now(); if (tab === "home" && !document.querySelector(".sheet")) viewHome(); } catch(e) {} }
+setInterval(() => { if (PILOT && tab === "home" && Date.now() - ginAt > 20000) refreshGin(); }, 5000);
 function viewHome(){
   if (!me) { view.innerHTML = `<div class="card"><h2>השבוע שלי</h2><button type="button" class="btn pri" id="setme">בחר את השם שלך</button></div>`; document.getElementById("setme").onclick = pickMe; return; }
   if (FBC && TOKEN && (gState === "idle" || gState === "loading")) { view.innerHTML = `<div class="card"><p class="hint">טוען…</p></div>`; loadGuard(); return; }
@@ -2080,7 +2083,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "799e296cb5ef";
+  const BUILD = "0f8aa4558367";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
