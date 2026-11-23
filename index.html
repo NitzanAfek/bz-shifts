@@ -132,6 +132,14 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 @keyframes mflash{0%{transform:scale(1.03)}100%{transform:scale(1)}}.meter.flash{animation:mflash .35s ease-out}
 .msave{margin-inline-start:auto;font-size:12px}
 .gaps{border-color:var(--bad)}
+.list li.grow{display:grid;gap:8px;align-items:start}
+.ghd{display:flex;align-items:baseline;gap:8px;font-size:17px}.gk{font-size:12px;color:var(--muted);background:var(--soft);border-radius:999px;padding:2px 8px}
+.gchs{display:flex;flex-wrap:wrap;gap:6px}.gch{font-size:12px;border-radius:999px;padding:3px 9px;background:var(--soft);color:var(--muted)}.gch.ok{background:var(--goodbg);color:var(--good);font-weight:700}
+.gnote{margin:0;font-size:13px;color:var(--muted)}
+.gwarn{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--badbg);border-radius:10px;padding:8px 10px;font-size:13px;color:var(--bad)}
+.gacts{display:flex;flex-wrap:wrap;gap:6px}
+.ga{font:inherit;font-size:12.5px;color:var(--acc);text-decoration:none;white-space:nowrap;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 10px;cursor:pointer}
+.ga.on{background:var(--goodbg);color:var(--good);border-color:var(--good);font-weight:700}.ga.dim{color:var(--muted)}
 .cal.on{background:var(--goodbg);color:var(--good);border-color:var(--good)}
 tr.offrow td{text-align:start;background:var(--bg);padding:4px 8px 8px;border-top:0}
 .offrow .ol{font-size:12px;color:var(--muted);margin-inline-end:6px}
@@ -1482,12 +1490,17 @@ function viewAdmin(){
       const pend = g.tpl ? blockSplit(g.tpl.cells || {}, g.tplOk, false).pend : [];
       const wpend = W.map(w => { const c = g.cons && g.cons[iso(w)]; return c ? [w, blockSplit(c.cells, g.tplOk, (g.consOk || {})[iso(w)]).pend, c.reasons] : [w, [], ""]; }).filter(x => x[1].length);
       const lockedWk = aWeek === 0 && adminWeeks().length > 1, ru = g.reopen && g.reopen[ws] ? new Date(g.reopen[ws]) : null, isOpen = ru && ru > new Date();
-      const reoBtn = lockedWk && g.token ? `<button class="cal${isOpen ? " on" : ""}" data-reopen="${esc(n)}">${isOpen ? "🔓 פתוח עד " + DAYN[ru.getDay()] + " " + hhmm(ru) + " · נעל" : "🔒 פתח לו אילוצים"}</button>` : "";
-      return `<li><div class="s"><button type="button" class="linkbtn" data-see="${esc(n)}">${esc(n)}</button> <small style="color:var(--muted)">${kind}</small><span>${st.length ? st.join(" · ") : (g.token ? "עוד לא מילא" : "אין קישור")}</span>${g.prof && g.prof.note ? `<span>💬 ${esc(g.prof.note)}</span>` : ""}
-        ${pend.length ? `<span class="warn">חסימה קבועה רביעית ומעלה: ${lbl(pend)} <button class="mebtn" data-appr="${esc(n)}">אשר</button></span>` : ""}
-        ${wpend.map(([w, ks, why]) => `<span class="warn">שבוע ${dm(w)}, חסימה רביעית ומעלה: ${lbl(ks)}${why ? ` · "${esc(why)}"` : ""} <button class="mebtn" data-apw="${esc(n)}|${iso(w)}">אשר</button></span>`).join("")}</div>
-        ${g.token ? `<a class="cal" target="_blank" rel="noopener" href="${waLink(`היי ${first(n)} 👋\nזה הקישור האישי שלך לאפליקציית הבונקר: אילוצים, התבנית השבועית שלך ואישור משמרות.\n${linkFor(g.token)}\nהקישור אישי, אל תעביר אותו.`)}">שלח</a><button class="cal" data-cpl="${esc(n)}">העתק</button>` : `<button class="cal" data-mk="${esc(n)}">צור קישור</button>`}
-        ${reoBtn}<button class="cal" data-kind="${esc(n)}">${kind === "קבוע" ? "← מתגבר" : "← קבוע"}</button></li>`; };
+      const reoBtn = lockedWk && g.token ? `<button class="cal${isOpen ? " on" : ""}" data-reopen="${esc(n)}">${isOpen ? "🔓 פתוח עד " + DAYN[ru.getDay()] + " · נעל" : "🔒 פתח אילוצים"}</button>` : "";
+      // 23.11 layout: name + status chips on top, warnings, then a row of actions (it was squeezed into one column on a phone)
+      const chip = (ok, txt) => `<span class="gch${ok ? " ok" : ""}">${ok ? "✓" : "○"} ${txt}</span>`;
+      const hasCons = !!(g.cons && g.cons[ws] && g.cons[ws].at), hasTpl = !!(g.tpl && Object.keys(g.tpl.cells || {}).length);
+      const link = g.token ? `<a class="ga" target="_blank" rel="noopener" href="${waLink(`היי ${first(n)} 👋\nזה הקישור האישי שלך לאפליקציית הבונקר: אילוצים, התבנית השבועית שלך ואישור משמרות.\n${linkFor(g.token)}\nהקישור אישי, אל תעביר אותו.`)}">📤 קישור</a><button class="ga" data-cpl="${esc(n)}">העתק</button>` : `<button class="ga" data-mk="${esc(n)}">צור קישור</button>`;
+      return `<li class="grow"><div class="ghd"><button type="button" class="linkbtn" data-see="${esc(n)}">${esc(n)}</button><span class="gk">${kind}</span>${(g.push || []).length ? '<span title="התראות פעילות">🔔</span>' : ""}</div>
+        <div class="gchs">${g.token ? chip(!!g.verified, "אומת") + chip(hasTpl, "תבנית") + chip(hasCons, "אילוצים " + dm(W[0])) : '<span class="gch">אין קישור עדיין</span>'}</div>
+        ${g.prof && g.prof.note ? `<p class="gnote">💬 ${esc(g.prof.note)}</p>` : ""}
+        ${pend.length ? `<div class="gwarn"><span>חסימה קבועה רביעית ומעלה: <b>${lbl(pend)}</b></span><button class="mebtn" data-appr="${esc(n)}">אשר</button></div>` : ""}
+        ${wpend.map(([w, ks, why]) => `<div class="gwarn"><span>שבוע ${dm(w)}, חסימה רביעית ומעלה: <b>${lbl(ks)}</b>${why ? ` · "${esc(why)}"` : ""}</span><button class="mebtn" data-apw="${esc(n)}|${iso(w)}">אשר</button></div>`).join("")}
+        <div class="gacts">${reoBtn.replace('class="cal', 'class="ga')}${link}<button class="ga dim" data-kind="${esc(n)}">${kind === "קבוע" ? "← מתגבר" : "← קבוע"}</button></div></li>`; };
     if (aWeek === 0 && adminWeeks().length > 1) h += `<div class="card"><h3>🔒 שבוע ${dm(W[0])} נעול לאילוצים</h3><p class="hint" style="margin:0">אפשר לפתוח מחדש לשומר אחד (בשורה שלו), או לכולם. נפתח עד פרסום הסידור, ${DAYN[openAt(addDays(W[0], 7)).getDay()]} ${dm(openAt(addDays(W[0], 7)))} ב־20:00. מתגבר חדש מופיע כאן אחרי שאימת את עצמו.</p>
       <div class="actions"><button type="button" class="btn sec" data-reopenall="1">🔓 פתח לכל הצוות</button><button type="button" class="btn sec" data-reopenall="0">🔒 נעל לכולם</button></div></div>`;
     h += `<div class="card"><h3>אישור שומר בלי הבוט</h3><p class="hint" style="margin:0">כשהבוט לא מחובר, השומר מקבל במסך קוד בן 8 תווים. אשר רק אם אתה בטוח שזה הוא.</p>
@@ -1842,7 +1855,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "8813326bf83d";
+  const BUILD = "2070622d55dd";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
