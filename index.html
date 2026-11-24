@@ -890,7 +890,7 @@ async function fsSet(path, obj){
   if (!r.ok) throw new Error("set " + r.status);
 }
 // the bot reads one small doc every 30s; touching it after a swap action wakes the full check (24.11 quota fix)
-const pingSwaps = () => fsSet("guards/bz-swap-ping-signal", {at: new Date().toISOString()}).catch(() => {});
+const pingSwaps = () => fsSet("guards/bz-swap-ping-signal-doc", {at: new Date().toISOString()}).catch(() => {});
 async function fsMany(paths){
   if (!paths.length) return {};
   const base = `projects/${FBC.projectId}/databases/(default)/documents/`;
@@ -2090,7 +2090,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "aab47c795694";
+  const BUILD = "52281c80969b";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
