@@ -873,17 +873,24 @@ const LED = DATA.ledger || {weeks: [], people: {}, teamPost: {}, complete: {}};
 const FBC = DATA.fb || null;
 const FS = FBC ? `https://firestore.googleapis.com/v1/projects/${FBC.projectId}/databases/(default)/documents` : "";
 const FSK = FBC && FBC.apiKey ? "key=" + FBC.apiKey : "";
+let QUOTA = false;
+function quotaBanner(){ if (document.getElementById("qban")) return; const d = document.createElement("div"); d.id = "qban"; d.className = "alert sw"; d.style.margin = "0 0 10px";
+  d.innerHTML = "<b>השרת הגיע למגבלה היומית.</b> הסידור מוצג כרגיל. שמירת אילוצים והחלפות תחזור לעבוד ב־10:00. שום דבר לא נמחק."; const w = document.querySelector(".wrap"); if (w) w.prepend(d); }
 async function fsGet(path){
   const r = await fetch(`${FS}/${path}${FSK ? "?" + FSK : ""}`, {cache: "no-store"});
   if (r.status === 404) return null;
+  if (r.status === 429) { QUOTA = true; quotaBanner(); }
   if (!r.ok) throw new Error("get " + r.status);
   const j = await r.json(); return JSON.parse((j.fields && j.fields.json && j.fields.json.stringValue) || "null");
 }
 async function fsSet(path, obj){
   const r = await fetch(`${FS}/${path}${FSK ? "?" + FSK : ""}`, {method: "PATCH", headers: {"Content-Type": "application/json"},
     body: JSON.stringify({fields: {json: {stringValue: JSON.stringify(obj)}, at: {timestampValue: new Date().toISOString()}}})});
+  if (r.status === 429) { QUOTA = true; quotaBanner(); }
   if (!r.ok) throw new Error("set " + r.status);
 }
+// the bot reads one small doc every 30s; touching it after a swap action wakes the full check (24.11 quota fix)
+const pingSwaps = () => fsSet("guards/bz-swap-ping-signal", {at: new Date().toISOString()}).catch(() => {});
 async function fsMany(paths){
   if (!paths.length) return {};
   const base = `projects/${FBC.projectId}/databases/(default)/documents/`;
@@ -1970,11 +1977,11 @@ function cantSheetP(x){
   sh.querySelector("#cp_x").onclick = () => sh.remove(); sh.onclick = e => { if (e.target === sh) sh.remove(); };
   sh.querySelector("#cp_send").onclick = () => { GDOC.out = GDOC.out || {};
     GDOC.out[id] = {id, post: x.post, day: x.day, s: x.s, base: iso(x.base), start: x.start.toISOString(), end: x.end.toISOString(), cands: ok.map(c => c.n), at: new Date().toISOString(), status: "open"};
-    saveGuard(); sh.remove(); toast("נשלח. תקבל עדכון כשמישהו לוקח"); render(); };
+    saveGuard(); setTimeout(pingSwaps, 1500); sh.remove(); toast("נשלח. תקבל עדכון כשמישהו לוקח"); render(); };
 }
 let ginAt = 0;
 async function refreshGin(){ if (!PILOT || !TOKEN || !GDOC) return; try { GIN = (await fsGet("guards/" + TOKEN + "-in")) || {}; ginAt = Date.now(); if (tab === "home" && !document.querySelector(".sheet")) viewHome(); } catch(e) {} }
-setInterval(() => { if (PILOT && tab === "home" && Date.now() - ginAt > 20000) refreshGin(); }, 5000);
+setInterval(() => { if (PILOT && tab === "home" && document.visibilityState === "visible" && !QUOTA && Date.now() - ginAt > 60000) refreshGin(); }, 10000);
 function viewHome(){
   if (!me) { view.innerHTML = `<div class="card"><h2>השבוע שלי</h2><button type="button" class="btn pri" id="setme">בחר את השם שלך</button></div>`; document.getElementById("setme").onclick = pickMe; return; }
   if (FBC && TOKEN && (gState === "idle" || gState === "loading")) { view.innerHTML = `<div class="card"><p class="hint">טוען…</p></div>`; loadGuard(); return; }
@@ -2006,9 +2013,9 @@ function viewHome(){
       ${c && c.at ? `<p class="hint" style="margin:0">אפשר לשנות עד הנעילה.</p>` : Object.keys(tpl).length ? `<p class="hint" style="margin:0">אין שינוי מהתבנית הקבועה שלך? לחיצה אחת וזה מוגש.</p><div class="actions"><button type="button" class="btn pri" id="asusual">כמו תמיד</button><button type="button" class="btn sec" data-t2="cons">יש שינוי</button></div>` : `<p class="hint" style="margin:0">עוד אין לך תבנית קבועה. ממלאים פעם אחת, ומאז כל שבוע זה לחיצה.</p><div class="actions"><button type="button" class="btn pri" data-t2="cons">למלא תבנית</button></div>`}</div>`; }
   view.innerHTML = h;
   view.querySelectorAll("[data-cant]").forEach(b => b.onclick = () => cantSheetP(list[+b.dataset.cant]));
-  view.querySelectorAll("[data-claim]").forEach(b => b.onclick = () => { GDOC.claims = GDOC.claims || {}; GDOC.claims[b.dataset.claim] = new Date().toISOString(); saveGuard(); toast("נשלח. הבוט בודק שזה מתאים לכללים"); viewHome(); });
+  view.querySelectorAll("[data-claim]").forEach(b => b.onclick = () => { GDOC.claims = GDOC.claims || {}; GDOC.claims[b.dataset.claim] = new Date().toISOString(); saveGuard(); setTimeout(pingSwaps, 1500); toast("נשלח. הבוט בודק שזה מתאים לכללים"); viewHome(); });
   view.querySelectorAll("[data-pass]").forEach(b => b.onclick = () => { GDOC.passes = GDOC.passes || {}; GDOC.passes[b.dataset.pass] = new Date().toISOString(); GIN.offers[b.dataset.pass].status = "passed"; saveGuard(); viewHome(); });
-  view.querySelectorAll("[data-unreq]").forEach(b => b.onclick = () => { GDOC.out[b.dataset.unreq].status = "cancelled"; saveGuard(); toast("הבקשה בוטלה. המשמרת שלך"); viewHome(); });
+  view.querySelectorAll("[data-unreq]").forEach(b => b.onclick = () => { GDOC.out[b.dataset.unreq].status = "cancelled"; saveGuard(); setTimeout(pingSwaps, 1500); toast("הבקשה בוטלה. המשמרת שלך"); viewHome(); });
   view.querySelectorAll("[data-t2]").forEach(b => b.onclick = () => { tab = b.dataset.t2; store.set("tab", tab); render(); });
   const au = document.getElementById("asusual"); if (au) au.onclick = () => { const pw = iso(planWeeks()[0]); GDOC.cons = GDOC.cons || {};
     GDOC.cons[pw] = {cells: Object.assign({}, GDOC.tpl.cells), reasons: "", note: "", at: new Date().toISOString(), asUsual: true}; saveGuard(); toast("הוגש: כמו תמיד"); viewHome(); };
@@ -2034,15 +2041,15 @@ async function viewInbox(){
       ${(o.blocked || []).length ? `<p class="hint" style="margin:0">נחסם: ${o.blocked.map(b => esc(shortName(b.n)) + " (" + esc(b.why) + ")").join(", ")}</p>` : ""}
       <div class="actions">${o.status === "awaiting" ? `<button type="button" class="btn pri" data-id="${esc(o.id)}" data-a="approve">אשר את ${esc(shortName(o.winner))}</button><button type="button" class="btn sec" data-id="${esc(o.id)}" data-a="reject">דחה</button>` : (o.cands || []).slice(0, 3).map(n => `<button type="button" class="ga" data-id="${esc(o.id)}" data-a="assign" data-who="${esc(n)}">שבץ את ${esc(shortName(n))}</button>`).join("")}</div></div>`; });
   if (done.length) h += `<h3 style="margin-top:6px">טופל</h3>` + done.map(o => `<div class="card" style="opacity:.8"><p style="margin:0;font-size:14px"><b>${esc(shortName(o.from))} ← ${esc(shortName(o.winner))}</b> · ${esc(whenTxt({post: o.post, day: o.day, s: o.s, base: new Date(o.base + "T00:00:00")}))}</p></div>`).join("");
-  h += `<p class="hint">מתעדכן מהבוט כל 20 שניות. ${LIN.at ? "עודכן " + hhmm(new Date(LIN.at)) : ""} <button type="button" class="linkbtn" id="ibr">רענן</button></p>`;
+  h += `<p class="hint">הבוט בודק כל חצי דקה. ${LIN.at ? "עודכן " + hhmm(new Date(LIN.at)) : ""} <button type="button" class="linkbtn" id="ibr">רענן</button></p>`;
   view.innerHTML = h;
   document.getElementById("ibr").onclick = () => { LIN = null; viewInbox(); };
   view.querySelectorAll("#view [data-a]").forEach(b => b.onclick = async () => {
     const id = b.dataset.id, a = b.dataset.a, who = b.dataset.who || "";
     b.textContent = "…"; try { const D = (await fsGet("admin/" + ADMIN + "-decide")) || {};
-      D[id] = {act: a, who: who || "", at: new Date().toISOString(), by: me}; await fsSet("admin/" + ADMIN + "-decide", D);
+      D[id] = {act: a, who: who || "", at: new Date().toISOString(), by: me}; await fsSet("admin/" + ADMIN + "-decide", D); pingSwaps();
       toast(a === "reject" ? "נדחה. הבקשה פתוחה שוב" : "נשלח לבוט. הסידור יתעדכן תוך כחצי דקה"); } catch(e) { toast("לא נשמר"); }
-    setTimeout(() => { LIN = null; viewInbox(); }, 25000); });
+    setTimeout(() => { if (tab === "inbox") { LIN = null; viewInbox(); } }, 35000); });
 }
 const VIEWS = {home:viewHome, inbox:viewInbox, now:viewNow, week:viewWeek, mine:viewMine, ask:viewSwap, cons:viewCons, plan:viewAdmin, settings:viewSettings};   // 2.0: plan = the scheduler, only with the scheduler link
 if (ADMIN && FBC) { const tb = document.getElementById("tabs"); tb.style.gridTemplateColumns = "repeat(6,1fr)";
@@ -2083,7 +2090,7 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,v); } catch(e) {} };
   try { enc = await (await fetch("data.enc.json", {cache:"no-store"})).json(); }
   catch(e) { lock.hidden = false; msg.textContent = "אין חיבור לאינטרנט. נסו שוב בעוד רגע."; return; }
   // live: look for newer data every 2 minutes; reload quietly unless the person is mid-request
-  const BUILD = "34c4ca0d77aa";
+  const BUILD = "aab47c795694";
   const checkBuild = async () => { try { const v = (await (await fetch("version.txt", {cache:"no-store"})).text()).trim(); if (v && BUILD !== "__BUILD" + "__" && v !== BUILD) location.reload(); } catch(e) {} };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkBuild(); });
   setInterval(checkBuild, 120000);
